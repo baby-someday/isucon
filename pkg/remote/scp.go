@@ -53,7 +53,7 @@ func Copy(ctx context.Context, host, src, dst string, authenticationMethod Authe
 		return err
 	}
 
-	client, err := newClient(host, authenticationMethod)
+	client, err := NewClient(host, authenticationMethod)
 	if err != nil {
 		return err
 	}

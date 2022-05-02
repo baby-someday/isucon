@@ -15,7 +15,10 @@ var rootCmd = &cobra.Command{
 }
 
 const (
-	FLAG_CONFIG_PATH = "config"
+	FLAG_CONFIG_PATH  = "config"
+	FLAG_NETWORK_PATH = "network"
+	FLAG_ME_PATH      = "me"
+	FLAG_SLACK_PATH   = "slack"
 )
 
 func Execute() {

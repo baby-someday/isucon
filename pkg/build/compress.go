@@ -69,7 +69,12 @@ func archive(dir, p string, ignore []string, zipWriter *zip.Writer) error {
 				return err
 			}
 
-			_, err = srcFileWriter.Write([]byte(fp))
+			link, err := os.Readlink(fp)
+			if err != nil {
+				return err
+			}
+
+			_, err = srcFileWriter.Write([]byte(link))
 			if err != nil {
 				return err
 			}

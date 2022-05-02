@@ -2,156 +2,145 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
 
 	"github.com/baby-someday/isucon/internal/distribute"
+	"github.com/baby-someday/isucon/pkg/me"
 	"github.com/baby-someday/isucon/pkg/remote"
+	"github.com/baby-someday/isucon/pkg/slack"
 	"github.com/spf13/cobra"
-)
-
-const (
-	FLAG_HOSTS    = "hosts"
-	FLAG_SRC      = "src"
-	FLAG_DST      = "dst"
-	FLAG_AUTH     = "auth"
-	FLAG_USER     = "user"
-	FLAG_PASSWORD = "password"
-	FLAG_IGNORE   = "ignore"
+	"gopkg.in/yaml.v2"
 )
 
 var distributeCmd = &cobra.Command{
 	Use:   "distribute",
 	Short: "distribute",
 	Long:  `distribute`,
-	Args:  validateDistributeArgs,
 	Run:   runDistributeCommand,
 }
 
 func init() {
-	distributeCmd.Flags().StringSlice(
-		FLAG_HOSTS,
-		make([]string, 0),
-		"remote host",
-	)
 	distributeCmd.Flags().String(
-		FLAG_SRC,
+		FLAG_CONFIG_PATH,
 		"",
-		"source file path",
-	)
-	distributeCmd.Flags().String(
-		FLAG_DST,
 		"",
-		"dest path",
 	)
 	distributeCmd.Flags().String(
-		FLAG_AUTH,
-		remote.AUTHENTICATION_METHOD_PASSWORD,
-		"ssh authentication method",
-	)
-	distributeCmd.Flags().String(
-		FLAG_USER,
+		FLAG_ME_PATH,
 		"",
-		"ssh user",
+		"",
 	)
 	distributeCmd.Flags().String(
-		FLAG_PASSWORD,
+		FLAG_NETWORK_PATH,
 		"",
-		"ssh password",
+		"",
 	)
-	distributeCmd.Flags().StringSlice(
-		FLAG_IGNORE,
-		make([]string, 0),
-		"files should be ignored",
+	distributeCmd.Flags().String(
+		FLAG_SLACK_PATH,
+		"",
+		"",
 	)
-	distributeCmd.MarkFlagRequired(FLAG_HOSTS)
-	distributeCmd.MarkFlagRequired(FLAG_SRC)
-	distributeCmd.MarkFlagRequired(FLAG_DST)
-	distributeCmd.MarkFlagRequired(FLAG_AUTH)
+	distributeCmd.MarkFlagRequired(FLAG_CONFIG_PATH)
+	distributeCmd.MarkFlagRequired(FLAG_ME_PATH)
+	distributeCmd.MarkFlagRequired(FLAG_NETWORK_PATH)
+	distributeCmd.MarkFlagRequired(FLAG_SLACK_PATH)
 	rootCmd.AddCommand(distributeCmd)
 }
 
-func validateDistributeArgs(cmd *cobra.Command, args []string) error {
-	if len(args) < 1 {
-		return errors.New("command is required")
-	}
-	return nil
-}
-
 func runDistributeCommand(cmd *cobra.Command, args []string) {
-	command := args[0]
-
-	hosts, err := cmd.Flags().GetStringSlice(FLAG_HOSTS)
+	configFilePath, err := cmd.Flags().GetString(FLAG_CONFIG_PATH)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
 
-	src, err := cmd.Flags().GetString(FLAG_SRC)
+	configFileBytes, err := ioutil.ReadFile(configFilePath)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
 
-	dst, err := cmd.Flags().GetString(FLAG_DST)
+	config := distribute.Config{}
+	err = yaml.Unmarshal(configFileBytes, &config)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
 
-	auth, err := cmd.Flags().GetString(FLAG_AUTH)
+	meFilePath, err := cmd.Flags().GetString(FLAG_ME_PATH)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
 
-	ignore, err := cmd.Flags().GetStringSlice(FLAG_IGNORE)
+	meFileBytes, err := ioutil.ReadFile(meFilePath)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
 
-	switch auth {
-	case remote.AUTHENTICATION_METHOD_PASSWORD:
-		err = distributeUsingPasswordAuthentication(
-			cmd,
-			hosts,
-			src,
-			dst,
-			command,
-			ignore,
-		)
-
-	case remote.AUTHENTICATION_METHOD_KEY:
-
-	default:
-		log.Fatal(fmt.Sprintf(
-			"%s flag should be followings: %s, %s",
-			FLAG_AUTH,
-			remote.AUTHENTICATION_METHOD_PASSWORD,
-			remote.AUTHENTICATION_METHOD_KEY,
-		))
-	}
-
+	me := me.Config{}
+	err = yaml.Unmarshal(meFileBytes, &me)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-}
 
-func distributeUsingPasswordAuthentication(cmd *cobra.Command, hosts []string, src, dst, command string, ignore []string) error {
-	user, err := cmd.Flags().GetString(FLAG_USER)
+	networkFilePath, err := cmd.Flags().GetString(FLAG_NETWORK_PATH)
 	if err != nil {
-		return err
-	}
-	password, err := cmd.Flags().GetString(FLAG_PASSWORD)
-	if err != nil {
-		return err
+		log.Fatal(err.Error())
 	}
 
-	return distribute.DistributeUsingPasswordAuthentication(
-		context.Background(),
-		hosts,
-		src,
-		dst,
-		user,
-		password,
-		command,
-		ignore,
+	networkFileBytes, err := ioutil.ReadFile(networkFilePath)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
+	network := remote.Network{}
+	err = yaml.Unmarshal(networkFileBytes, &network)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
+	slackFilePath, err := cmd.Flags().GetString(FLAG_SLACK_PATH)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
+	slackFileBytes, err := ioutil.ReadFile(slackFilePath)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
+	slackConfig := slack.Config{}
+	err = yaml.Unmarshal(slackFileBytes, &slackConfig)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
+	err = slack.Post(
+		slackConfig.Token,
+		slackConfig.Channel,
+		fmt.Sprintf("🚀 %sさんがベンチマークを開始しました", me.Name),
 	)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
+	err = distribute.Distribute(
+		context.Background(),
+		network,
+		config.Src,
+		config.Dst,
+		config.Command,
+		config.Ignore,
+	)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
+	err = slack.Post(
+		slackConfig.Token,
+		slackConfig.Channel,
+		fmt.Sprintf("💨 %sさんがベンチマークを終了しました", me.Name),
+	)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
 }

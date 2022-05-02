@@ -1,1 +1,0 @@
-go run main.go distribute --hosts="192.168.10.109" --src=/Users/shoutokobayashi/Apps/isucon/isucon7-qualify --dst=/home/sk/Apps/isucon7-qualify --auth=password --user=sk --password=a07030101 --ignore=".git" "cd /home/sk/Apps/isucon7-qualify; unzip -o isucon7-qualify.zip; make; ./isubata"
