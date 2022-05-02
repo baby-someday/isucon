@@ -1,0 +1,6 @@
+src:
+dst:
+lock:
+ignore:
+  - .git
+command:

@@ -1,0 +1,17 @@
+servers:
+  - host:
+    authentication:
+    ssh:
+      user:
+      password:
+    environments:
+      - name:
+        value:
+  - host:
+    authentication:
+    ssh:
+      user:
+      password:
+    environments:
+      - name:
+        value:
