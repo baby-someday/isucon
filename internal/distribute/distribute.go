@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path"
 
@@ -23,9 +24,18 @@ type process struct {
 	stderrFile *os.File
 }
 
-func Distribute(ctx context.Context, network remote.Network, src, dst, command string, ignore []string) error {
+func Distribute(ctx context.Context, network remote.Network, src, dst, lock, command string, ignore []string) error {
+	err := tryToLock(
+		lock,
+		network,
+	)
+	if err != nil {
+		log.Println("ロックに失敗しました、他のベンチマークが実行中です。")
+		return err
+	}
+
 	zipPath := path.Join(getOutputPath(), path.Base(src)+".zip")
-	err := build.Compress(src, zipPath, ignore)
+	err = build.Compress(src, zipPath, ignore)
 	if err != nil {
 		return err
 	}
@@ -34,24 +44,9 @@ func Distribute(ctx context.Context, network remote.Network, src, dst, command s
 
 	// TODO: Closeちゃんとやる
 	for _, server := range network.Servers {
-		var authenticationMethod remote.AuthenticationMethod
-		switch server.Authentication {
-		case remote.AUTHENTICATION_METHOD_PASSWORD:
-			authenticationMethod = remote.PasswordAuthentication{
-				User:     server.SSH.User,
-				Password: server.SSH.Password,
-			}
-
-		case remote.AUTHENTICATION_METHOD_KEY:
-			// TODO
-			break
-
-		default:
-			return errors.New(fmt.Sprintf(
-				"authentication should be followings: %s, %s",
-				remote.AUTHENTICATION_METHOD_PASSWORD,
-				remote.AUTHENTICATION_METHOD_KEY,
-			))
+		authenticationMethod, err := parseAuthenticationMethod(server)
+		if err != nil {
+			return err
 		}
 
 		err = remote.Copy(
@@ -134,6 +129,56 @@ func Distribute(ctx context.Context, network remote.Network, src, dst, command s
 		process.client.Close()
 	}
 
+	err = tryToUnlock(
+		lock,
+		network,
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func tryToLock(lock string, network remote.Network) error {
+	for _, server := range network.Servers {
+		authenticationMethod, err := parseAuthenticationMethod(server)
+		// TODO Unlockちゃんとやる
+		if err != nil {
+			return err
+		}
+		err = remote.Lock(
+			lock,
+			server.Host,
+			authenticationMethod,
+		)
+		// TODO Unlockちゃんとやる
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func tryToUnlock(lock string, network remote.Network) error {
+	for _, server := range network.Servers {
+		authenticationMethod, err := parseAuthenticationMethod(server)
+		// TODO Unlockちゃんとやる
+		if err != nil {
+			return err
+		}
+		err = remote.Unlock(
+			lock,
+			server.Host,
+			authenticationMethod,
+		)
+		// TODO Unlockちゃんとやる
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -156,4 +201,28 @@ func newSession(host string, environments []remote.Environment, authenticationMe
 	}
 
 	return client, session, nil
+}
+
+func parseAuthenticationMethod(server remote.Server) (remote.AuthenticationMethod, error) {
+	var authenticationMethod remote.AuthenticationMethod
+	switch server.Authentication {
+	case remote.AUTHENTICATION_METHOD_PASSWORD:
+		authenticationMethod = remote.PasswordAuthentication{
+			User:     server.SSH.User,
+			Password: server.SSH.Password,
+		}
+
+	case remote.AUTHENTICATION_METHOD_KEY:
+		// TODO
+		break
+
+	default:
+		return nil, errors.New(fmt.Sprintf(
+			"authentication should be followings: %s, %s",
+			remote.AUTHENTICATION_METHOD_PASSWORD,
+			remote.AUTHENTICATION_METHOD_KEY,
+		))
+	}
+
+	return authenticationMethod, nil
 }

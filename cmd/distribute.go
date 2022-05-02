@@ -128,6 +128,7 @@ func runDistributeCommand(cmd *cobra.Command, args []string) {
 		network,
 		config.Src,
 		config.Dst,
+		config.Lock,
 		config.Command,
 		config.Ignore,
 	)
