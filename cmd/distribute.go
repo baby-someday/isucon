@@ -24,28 +24,24 @@ var distributeCmd = &cobra.Command{
 func init() {
 	distributeCmd.Flags().String(
 		FLAG_CONFIG_PATH,
-		"",
+		"./config/distribute.yml",
 		"",
 	)
 	distributeCmd.Flags().String(
 		FLAG_ME_PATH,
-		"",
+		"./config/me.yml",
 		"",
 	)
 	distributeCmd.Flags().String(
 		FLAG_NETWORK_PATH,
-		"",
+		"./config/network.yml",
 		"",
 	)
 	distributeCmd.Flags().String(
 		FLAG_SLACK_PATH,
-		"",
+		"./config/slack.yml",
 		"",
 	)
-	distributeCmd.MarkFlagRequired(FLAG_CONFIG_PATH)
-	distributeCmd.MarkFlagRequired(FLAG_ME_PATH)
-	distributeCmd.MarkFlagRequired(FLAG_NETWORK_PATH)
-	distributeCmd.MarkFlagRequired(FLAG_SLACK_PATH)
 	rootCmd.AddCommand(distributeCmd)
 }
 
