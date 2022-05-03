@@ -1,6 +1,11 @@
 package remote
 
-import "golang.org/x/crypto/ssh"
+import (
+	"errors"
+	"fmt"
+
+	"golang.org/x/crypto/ssh"
+)
 
 const (
 	AUTHENTICATION_METHOD_PASSWORD = "password"
@@ -24,4 +29,28 @@ func (p PasswordAuthentication) makeConfig() *ssh.ClientConfig {
 		},
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}
+}
+
+func MakeAuthenticationMethod(server Server) (AuthenticationMethod, error) {
+	var authenticationMethod AuthenticationMethod
+	switch server.Authentication {
+	case AUTHENTICATION_METHOD_PASSWORD:
+		authenticationMethod = PasswordAuthentication{
+			User:     server.SSH.User,
+			Password: server.SSH.Password,
+		}
+
+	case AUTHENTICATION_METHOD_KEY:
+		// TODO
+		break
+
+	default:
+		return nil, errors.New(fmt.Sprintf(
+			"authentication should be followings: %s, %s",
+			AUTHENTICATION_METHOD_PASSWORD,
+			AUTHENTICATION_METHOD_KEY,
+		))
+	}
+
+	return authenticationMethod, nil
 }

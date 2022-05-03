@@ -2,7 +2,6 @@ package distribute
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -44,12 +43,12 @@ func Distribute(ctx context.Context, network remote.Network, src, dst, lock, com
 
 	// TODO: Closeちゃんとやる
 	for _, server := range network.Servers {
-		authenticationMethod, err := parseAuthenticationMethod(server)
+		authenticationMethod, err := remote.MakeAuthenticationMethod(server)
 		if err != nil {
 			return err
 		}
 
-		err = remote.Copy(
+		err = remote.CopyFromLocal(
 			ctx,
 			server.Host,
 			zipPath,
@@ -77,11 +76,22 @@ func Distribute(ctx context.Context, network remote.Network, src, dst, lock, com
 			return err
 		}
 
-		stdoutFile, err := os.Create(path.Join(getOutputPath(), fmt.Sprintf("%s:stdout", server.Host)))
+		stdoutFilePath := path.Join(getOutputPath(), server.Host, "stdout")
+		err = os.MkdirAll(path.Dir(stdoutFilePath), 0755)
 		if err != nil {
 			return err
 		}
-		stderrFile, err := os.Create(path.Join(getOutputPath(), fmt.Sprintf("./%s:stderr", server.Host)))
+		stdoutFile, err := os.Create(stdoutFilePath)
+		if err != nil {
+			return err
+		}
+
+		stderrFilePath := path.Join(getOutputPath(), server.Host, "stderr")
+		err = os.MkdirAll(path.Dir(stderrFilePath), 0755)
+		if err != nil {
+			return err
+		}
+		stderrFile, err := os.Create(stderrFilePath)
 		if err != nil {
 			return err
 		}
@@ -142,7 +152,7 @@ func Distribute(ctx context.Context, network remote.Network, src, dst, lock, com
 
 func tryToLock(lock string, network remote.Network) error {
 	for _, server := range network.Servers {
-		authenticationMethod, err := parseAuthenticationMethod(server)
+		authenticationMethod, err := remote.MakeAuthenticationMethod(server)
 		// TODO Unlockちゃんとやる
 		if err != nil {
 			return err
@@ -163,7 +173,7 @@ func tryToLock(lock string, network remote.Network) error {
 
 func tryToUnlock(lock string, network remote.Network) error {
 	for _, server := range network.Servers {
-		authenticationMethod, err := parseAuthenticationMethod(server)
+		authenticationMethod, err := remote.MakeAuthenticationMethod(server)
 		// TODO Unlockちゃんとやる
 		if err != nil {
 			return err
@@ -201,28 +211,4 @@ func newSession(host string, environments []remote.Environment, authenticationMe
 	}
 
 	return client, session, nil
-}
-
-func parseAuthenticationMethod(server remote.Server) (remote.AuthenticationMethod, error) {
-	var authenticationMethod remote.AuthenticationMethod
-	switch server.Authentication {
-	case remote.AUTHENTICATION_METHOD_PASSWORD:
-		authenticationMethod = remote.PasswordAuthentication{
-			User:     server.SSH.User,
-			Password: server.SSH.Password,
-		}
-
-	case remote.AUTHENTICATION_METHOD_KEY:
-		// TODO
-		break
-
-	default:
-		return nil, errors.New(fmt.Sprintf(
-			"authentication should be followings: %s, %s",
-			remote.AUTHENTICATION_METHOD_PASSWORD,
-			remote.AUTHENTICATION_METHOD_KEY,
-		))
-	}
-
-	return authenticationMethod, nil
 }

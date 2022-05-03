@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func Post(token, channel, message string) error {
+func PostMessage(token, channel, message string) error {
 	values := url.Values{}
 	values.Set("token", token)
 	values.Set("channel", channel)
@@ -19,7 +19,7 @@ func Post(token, channel, message string) error {
 		strings.NewReader(values.Encode()),
 	)
 	if err != nil {
-		log.Fatal(err.Error())
+		log.Fatal(err)
 	}
 
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -27,7 +27,7 @@ func Post(token, channel, message string) error {
 	client := &http.Client{}
 	response, err := client.Do(request)
 	if err != nil {
-		log.Fatal(err.Error())
+		log.Fatal(err)
 	}
 	defer response.Body.Close()
 

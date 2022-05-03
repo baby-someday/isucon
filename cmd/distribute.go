@@ -3,15 +3,14 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"log"
 
 	"github.com/baby-someday/isucon/internal/distribute"
 	"github.com/baby-someday/isucon/pkg/me"
 	"github.com/baby-someday/isucon/pkg/remote"
 	"github.com/baby-someday/isucon/pkg/slack"
+	"github.com/baby-someday/isucon/pkg/util"
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v2"
 )
 
 var distributeCmd = &cobra.Command{
@@ -24,99 +23,60 @@ var distributeCmd = &cobra.Command{
 func init() {
 	distributeCmd.Flags().String(
 		FLAG_CONFIG_PATH,
-		"./config/distribute.yml",
+		FLAG_CONFIG_PATH_DEFAULT,
 		"",
 	)
 	distributeCmd.Flags().String(
 		FLAG_ME_PATH,
-		"./config/me.yml",
+		FLAG_ME_PATH_DEFAULT,
 		"",
 	)
 	distributeCmd.Flags().String(
 		FLAG_NETWORK_PATH,
-		"./config/network.yml",
+		FLAG_NETWORK_PATH_DEFAULT,
 		"",
 	)
 	distributeCmd.Flags().String(
 		FLAG_SLACK_PATH,
-		"./config/slack.yml",
+		FLAG_SLACK_PATH_DEFAULT,
 		"",
 	)
+
 	rootCmd.AddCommand(distributeCmd)
 }
 
 func runDistributeCommand(cmd *cobra.Command, args []string) {
-	configFilePath, err := cmd.Flags().GetString(FLAG_CONFIG_PATH)
-	if err != nil {
-		log.Fatal(err.Error())
-	}
-
-	configFileBytes, err := ioutil.ReadFile(configFilePath)
-	if err != nil {
-		log.Fatal(err.Error())
-	}
-
 	config := distribute.Config{}
-	err = yaml.Unmarshal(configFileBytes, &config)
+	err := util.ParseFlag(cmd, FLAG_CONFIG_PATH, &config)
 	if err != nil {
-		log.Fatal(err.Error())
-	}
-
-	meFilePath, err := cmd.Flags().GetString(FLAG_ME_PATH)
-	if err != nil {
-		log.Fatal(err.Error())
-	}
-
-	meFileBytes, err := ioutil.ReadFile(meFilePath)
-	if err != nil {
-		log.Fatal(err.Error())
+		log.Fatal(err)
 	}
 
 	me := me.Config{}
-	err = yaml.Unmarshal(meFileBytes, &me)
+	err = util.ParseFlag(cmd, FLAG_ME_PATH, &me)
 	if err != nil {
-		log.Fatal(err.Error())
-	}
-
-	networkFilePath, err := cmd.Flags().GetString(FLAG_NETWORK_PATH)
-	if err != nil {
-		log.Fatal(err.Error())
-	}
-
-	networkFileBytes, err := ioutil.ReadFile(networkFilePath)
-	if err != nil {
-		log.Fatal(err.Error())
+		log.Fatal(err)
 	}
 
 	network := remote.Network{}
-	err = yaml.Unmarshal(networkFileBytes, &network)
+	err = util.ParseFlag(cmd, FLAG_NETWORK_PATH, &network)
 	if err != nil {
-		log.Fatal(err.Error())
-	}
-
-	slackFilePath, err := cmd.Flags().GetString(FLAG_SLACK_PATH)
-	if err != nil {
-		log.Fatal(err.Error())
-	}
-
-	slackFileBytes, err := ioutil.ReadFile(slackFilePath)
-	if err != nil {
-		log.Fatal(err.Error())
+		log.Fatal(err)
 	}
 
 	slackConfig := slack.Config{}
-	err = yaml.Unmarshal(slackFileBytes, &slackConfig)
+	err = util.ParseFlag(cmd, FLAG_SLACK_PATH, &slackConfig)
 	if err != nil {
-		log.Fatal(err.Error())
+		log.Fatal(err)
 	}
 
-	err = slack.Post(
+	err = slack.PostMessage(
 		slackConfig.Token,
 		slackConfig.Channel,
 		fmt.Sprintf("🚀 %sさんがベンチマークを開始しました", me.Name),
 	)
 	if err != nil {
-		log.Fatal(err.Error())
+		log.Fatal(err)
 	}
 
 	err = distribute.Distribute(
@@ -129,15 +89,15 @@ func runDistributeCommand(cmd *cobra.Command, args []string) {
 		config.Ignore,
 	)
 	if err != nil {
-		log.Fatal(err.Error())
+		log.Fatal(err)
 	}
 
-	err = slack.Post(
+	err = slack.PostMessage(
 		slackConfig.Token,
 		slackConfig.Channel,
 		fmt.Sprintf("💨 %sさんがベンチマークを終了しました", me.Name),
 	)
 	if err != nil {
-		log.Fatal(err.Error())
+		log.Fatal(err)
 	}
 }

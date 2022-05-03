@@ -4,6 +4,10 @@ servers:
     ssh:
       user:
       password:
+    nginx:
+      log:
+        access:
+        error:
     environments:
       - name:
         value:
@@ -12,6 +16,10 @@ servers:
     ssh:
       user:
       password:
+    nginx:
+      log:
+        access:
+        error:
     environments:
       - name:
         value:
