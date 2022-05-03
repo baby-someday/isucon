@@ -15,6 +15,7 @@ import (
 	"github.com/baby-someday/isucon/pkg/github"
 	"github.com/baby-someday/isucon/pkg/output"
 	"github.com/baby-someday/isucon/pkg/remote"
+	"github.com/baby-someday/isucon/pkg/slack"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -75,6 +76,8 @@ func DistributeFromGitHub(
 	repositoryName,
 	repositoryURL,
 	repositoryBranch,
+	slackToken,
+	slcakChannel,
 	dst,
 	lock,
 	command string,
@@ -94,6 +97,8 @@ func DistributeFromGitHub(
 				repositoryOwner,
 				repositoryName,
 				repositoryBranch,
+				slackToken,
+				slcakChannel,
 			),
 		},
 		deloyFromGitHub(
@@ -367,15 +372,15 @@ func makeNginxMetricsAction(servers []remote.Server) action {
 	}
 }
 
-func makeSaveScoreAction(token, owner, repositoryName, branch string) action {
+func makeSaveScoreAction(githubToken, repositoryOwner, repositoryName, repositoryBranch, slackToken, slackChannel string) action {
 	return action{
 		name: "save-score",
 		callback: func() error {
 			commit, err := github.GetCommit(
-				token,
-				owner,
+				githubToken,
+				repositoryOwner,
 				repositoryName,
-				branch,
+				repositoryBranch,
 			)
 			if err != nil {
 				return err
@@ -388,7 +393,7 @@ func makeSaveScoreAction(token, owner, repositoryName, branch string) action {
 			terminate := "baby-someday:terminate"
 			println("🤖    ベンチマーク結果を入力してください")
 			println(fmt.Sprintf("      ※終了する場合は %s を入力してください", terminate))
-			var result = fmt.Sprintf(`
+			var body = fmt.Sprintf(`
 ### スコア
 %d
 		
@@ -399,8 +404,8 @@ func makeSaveScoreAction(token, owner, repositoryName, branch string) action {
 %s
 		
 ### 結果
-`, score, branch, commit.Sha1)
-			result += "```\n"
+`, score, repositoryBranch, commit.Sha1)
+			var githubIssueBody = body + "```\n"
 			for {
 				scanner := bufio.NewScanner(os.Stdin)
 				if !scanner.Scan() {
@@ -410,21 +415,31 @@ func makeSaveScoreAction(token, owner, repositoryName, branch string) action {
 				if line == terminate {
 					break
 				}
-				result += line + "\n"
+				githubIssueBody += line + "\n"
 			}
-			result += "\n```\n"
+			githubIssueBody += "\n```\n"
 
-			err = github.PostIssue(
-				token,
-				owner,
+			postIssueResponse, err := github.PostIssue(
+				githubToken,
+				repositoryOwner,
 				repositoryName,
-				fmt.Sprintf("ベンチマーク: Score@%d Branch@%s Commit@%s", score, branch, commit.GetShortSha1()),
-				result,
-				[]string{github.TAG_BENCHMARK, fmt.Sprintf("branch/%s", branch), fmt.Sprintf("commit/%s", commit.GetShortSha1())},
+				fmt.Sprintf("ベンチマーク: Score@%d Branch@%s Commit@%s", score, repositoryBranch, commit.GetShortSha1()),
+				githubIssueBody,
+				[]string{github.TAG_BENCHMARK, fmt.Sprintf("branch/%s", repositoryBranch), fmt.Sprintf("commit/%s", commit.GetShortSha1())},
 			)
 			if err != nil {
 				return err
 			}
+
+			issueID, err := postIssueResponse.GetID()
+			if err != nil {
+				return err
+			}
+			slack.PostMessage(
+				slackToken,
+				slackChannel,
+				fmt.Sprintf("%s\nhttps://github.com/%s/%s/issues/%d", body, repositoryOwner, repositoryName, issueID),
+			)
 
 			return nil
 		},

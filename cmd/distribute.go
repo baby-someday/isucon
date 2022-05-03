@@ -88,7 +88,7 @@ func runDistributeCommand(cmd *cobra.Command, args []string) {
 		log.Fatal(err)
 	}
 
-	slackConfig := slack.Config{}
+	slackConfig := slack.Slack{}
 	err = util.ParseFlag(cmd, FLAG_SLACK_PATH, &slackConfig)
 	if err != nil {
 		log.Fatal(err)
@@ -102,7 +102,7 @@ func runDistributeCommand(cmd *cobra.Command, args []string) {
 	err = slack.PostMessage(
 		slackConfig.Token,
 		slackConfig.Channel,
-		fmt.Sprintf("🚀 %sさんがベンチマークを開始しました", me.Name),
+		fmt.Sprintf("%s\n🚀  %sさんがベンチマークを開始しました  🚀", slack.SEPARATOR, me.Name),
 	)
 	if err != nil {
 		log.Fatal(err)
@@ -133,7 +133,7 @@ func runDistributeCommand(cmd *cobra.Command, args []string) {
 	err = slack.PostMessage(
 		slackConfig.Token,
 		slackConfig.Channel,
-		fmt.Sprintf("💨 %sさんがベンチマークを終了しました", me.Name),
+		fmt.Sprintf("💨  %sさんがベンチマークを終了しました  💨\n%s", me.Name, slack.SEPARATOR),
 	)
 	if err != nil {
 		log.Fatal(err)
@@ -182,6 +182,16 @@ func distributeFromGitHub(
 		return err
 	}
 
+	slack := slack.Slack{}
+	err = util.ParseFlag(
+		cmd,
+		FLAG_SLACK_PATH,
+		&slack,
+	)
+	if err != nil {
+		return err
+	}
+
 	println("🤖    どのブランチをデプロイしますか？")
 	print("👉    ")
 	for index, branch := range github.Repository.Branches {
@@ -204,6 +214,8 @@ func distributeFromGitHub(
 		github.Repository.Name,
 		github.Repository.URL,
 		github.Repository.Branches[index],
+		slack.Token,
+		slack.Channel,
 		config.Dst,
 		config.Lock,
 		config.Command,

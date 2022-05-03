@@ -1,6 +1,10 @@
 package slack
 
-type Config struct {
+type Slack struct {
 	Token   string `yaml:"token"`
 	Channel string `yaml:"channel"`
 }
+
+const (
+	SEPARATOR = "=================================================="
+)
