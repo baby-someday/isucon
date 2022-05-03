@@ -33,7 +33,7 @@ func runMetricsNginxCommand(cmd *cobra.Command, args []string) {
 		log.Fatal(err)
 	}
 
-	err = metricsnginx.CopyFiles(network)
+	err = metricsnginx.CopyFiles(network.Servers)
 	if err != nil {
 		log.Fatal(err)
 	}

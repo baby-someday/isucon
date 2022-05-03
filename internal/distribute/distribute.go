@@ -1,15 +1,18 @@
 package distribute
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"io"
 	"log"
 	"os"
 	"path"
+	"strconv"
 
+	"github.com/baby-someday/isucon/internal/metricsnginx"
 	"github.com/baby-someday/isucon/pkg/build"
-	"github.com/baby-someday/isucon/pkg/nginx"
+	"github.com/baby-someday/isucon/pkg/github"
 	"github.com/baby-someday/isucon/pkg/output"
 	"github.com/baby-someday/isucon/pkg/remote"
 	"golang.org/x/crypto/ssh"
@@ -25,7 +28,100 @@ type process struct {
 	stderrFile *os.File
 }
 
-func Distribute(ctx context.Context, network remote.Network, src, dst, lock, command string, ignore []string) error {
+type action struct {
+	name     string
+	callback func() error
+}
+
+const (
+	FROM_LOCAL   = "local"
+	FROM_GIT_HUB = "github"
+)
+
+func DistributeFromLocal(
+	ctx context.Context,
+	network remote.Network,
+	src,
+	dst,
+	lock,
+	command string,
+	ignore []string,
+) error {
+	return distribute(
+		ctx,
+		network,
+		dst,
+		lock,
+		command,
+		ignore,
+		[]action{
+			makeNginxMetricsAction(network.Servers),
+		},
+		deloyFromLocal(
+			ctx,
+			network,
+			src,
+			dst,
+			ignore,
+		),
+	)
+}
+
+func DistributeFromGitHub(
+	ctx context.Context,
+	network remote.Network,
+	githubToken,
+	repositoryOwner,
+	repositoryName,
+	repositoryURL,
+	repositoryBranch,
+	dst,
+	lock,
+	command string,
+	ignore []string,
+) error {
+	err := distribute(
+		ctx,
+		network,
+		dst,
+		lock,
+		command,
+		ignore,
+		[]action{
+			makeNginxMetricsAction(network.Servers),
+			makeSaveScoreAction(
+				githubToken,
+				repositoryOwner,
+				repositoryName,
+				repositoryBranch,
+			),
+		},
+		deloyFromGitHub(
+			ctx,
+			network,
+			repositoryOwner,
+			repositoryName,
+			repositoryBranch,
+			dst,
+		),
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func distribute(
+	ctx context.Context,
+	network remote.Network,
+	dst,
+	lock,
+	command string,
+	ignore []string,
+	actions []action,
+	deploy func() error,
+) error {
 	err := tryToLock(
 		lock,
 		network,
@@ -35,8 +131,7 @@ func Distribute(ctx context.Context, network remote.Network, src, dst, lock, com
 		return err
 	}
 
-	zipPath := path.Join(output.GetDistributeOutputDirPath(), path.Base(src)+".zip")
-	err = build.Compress(src, zipPath, ignore)
+	err = deploy()
 	if err != nil {
 		return err
 	}
@@ -46,37 +141,6 @@ func Distribute(ctx context.Context, network remote.Network, src, dst, lock, com
 	// TODO: Closeちゃんとやる
 	for _, server := range network.Servers {
 		authenticationMethod, err := remote.MakeAuthenticationMethod(server)
-		if err != nil {
-			return err
-		}
-
-		err = nginx.RotateLogFile(
-			server.Host,
-			server.Nginx.Log.Access,
-			server.Nginx.Log.Persistence.Access,
-			authenticationMethod,
-		)
-		if err != nil {
-			return err
-		}
-
-		err = nginx.RotateLogFile(
-			server.Host,
-			server.Nginx.Log.Error,
-			server.Nginx.Log.Persistence.Error,
-			authenticationMethod,
-		)
-		if err != nil {
-			return err
-		}
-
-		err = remote.CopyFromLocal(
-			ctx,
-			server.Host,
-			zipPath,
-			dst,
-			authenticationMethod,
-		)
 		if err != nil {
 			return err
 		}
@@ -140,14 +204,30 @@ func Distribute(ctx context.Context, network remote.Network, src, dst, lock, com
 	}
 
 	for {
-		println("🤖    終了しますか？")
-		println("👉    y/n")
+		println("🤖    操作を選んでください")
+		print("👉    ")
+		for index, action := range actions {
+			print(fmt.Sprintf("%d:%s    ", index, action.name))
+		}
+		print("q:quit")
+		println()
 
 		var in string
 		fmt.Scan(&in)
 
-		if in == "y" {
+		if in == "q" {
 			break
+		}
+
+		index, err := strconv.ParseInt(in, 10, 64)
+		if err != nil || int64(len(actions)) <= index {
+			continue
+		}
+
+		err = actions[index].callback()
+		if err != nil {
+			log.Println(err.Error())
+			continue
 		}
 	}
 
@@ -159,14 +239,6 @@ func Distribute(ctx context.Context, network remote.Network, src, dst, lock, com
 		process.client.Close()
 	}
 
-	err = nginx.CopyLogFiles(
-		output.GetNginxMetricsDirPath(),
-		network,
-	)
-	if err != nil {
-		return err
-	}
-
 	err = tryToUnlock(
 		lock,
 		network,
@@ -176,6 +248,67 @@ func Distribute(ctx context.Context, network remote.Network, src, dst, lock, com
 	}
 
 	return nil
+}
+
+func deloyFromLocal(ctx context.Context, network remote.Network, src, dst string, ignore []string) func() error {
+	return func() error {
+		zipPath := path.Join(output.GetDistributeOutputDirPath(), path.Base(src)+".zip")
+		err := build.Compress(src, zipPath, ignore)
+		if err != nil {
+			return err
+		}
+
+		for _, server := range network.Servers {
+			authenticationMethod, err := remote.MakeAuthenticationMethod(server)
+			if err != nil {
+				return err
+			}
+
+			err = remote.CopyFromLocal(
+				ctx,
+				server.Host,
+				zipPath,
+				dst,
+				authenticationMethod,
+			)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+}
+
+func deloyFromGitHub(ctx context.Context, network remote.Network, repositoryOwner, repositoryName, branch, dst string) func() error {
+	return func() error {
+		for _, server := range network.Servers {
+			authenticationMethod, err := remote.MakeAuthenticationMethod(server)
+			if err != nil {
+				return err
+			}
+
+			command := fmt.Sprintf(
+				"rm -rf %s && mkdir -p %s && %s clone -b %s git@github.com:%s/%s.git %s",
+				dst,
+				dst,
+				server.Git.Bin,
+				branch,
+				repositoryOwner,
+				repositoryName,
+				dst,
+			)
+			_, err = remote.Exec(
+				server.Host,
+				command,
+				server.Environments,
+				authenticationMethod,
+			)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}
 }
 
 func tryToLock(lock string, network remote.Network) error {
@@ -218,4 +351,82 @@ func tryToUnlock(lock string, network remote.Network) error {
 	}
 
 	return nil
+}
+
+func makeNginxMetricsAction(servers []remote.Server) action {
+	return action{
+		name: "metrics-nginx",
+		callback: func() error {
+			err := metricsnginx.CopyFiles(servers)
+			if err != nil {
+				log.Println("Nginxのメトリクス取得に失敗しました。")
+				return err
+			}
+			return nil
+		},
+	}
+}
+
+func makeSaveScoreAction(token, owner, repositoryName, branch string) action {
+	return action{
+		name: "save-score",
+		callback: func() error {
+			commit, err := github.GetCommit(
+				token,
+				owner,
+				repositoryName,
+				branch,
+			)
+			if err != nil {
+				return err
+			}
+
+			println("🤖    スコアを入力してください")
+			var score int
+			fmt.Scan(&score)
+
+			terminate := "baby-someday:terminate"
+			println("🤖    ベンチマーク結果を入力してください")
+			println(fmt.Sprintf("      ※終了する場合は %s を入力してください", terminate))
+			var result = fmt.Sprintf(`
+### スコア
+%d
+		
+### ブランチ
+%s
+		
+### コミット
+%s
+		
+### 結果
+`, score, branch, commit.Sha1)
+			result += "```\n"
+			for {
+				scanner := bufio.NewScanner(os.Stdin)
+				if !scanner.Scan() {
+					break
+				}
+				line := scanner.Text()
+				if line == terminate {
+					break
+				}
+				result += line + "\n"
+			}
+			result += "\n```\n"
+
+			err = github.PostIssue(
+				token,
+				owner,
+				repositoryName,
+				fmt.Sprintf("ベンチマーク: Score@%d Branch@%s Commit@%s", score, branch, commit.GetShortSha1()),
+				result,
+				[]string{github.TAG_BENCHMARK, fmt.Sprintf("branch/%s", branch), fmt.Sprintf("commit/%s", commit.GetShortSha1())},
+			)
+			if err != nil {
+				return err
+			}
+
+			return nil
+		},
+	}
 }

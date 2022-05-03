@@ -1,6 +1,10 @@
 package remote
 
-import "bytes"
+import (
+	"bytes"
+	"errors"
+	"fmt"
+)
 
 func Exec(host, command string, environments []Environment, authenticationMethod AuthenticationMethod) ([]uint8, error) {
 	client, session, err := NewSession(host, environments, authenticationMethod)
@@ -16,7 +20,7 @@ func Exec(host, command string, environments []Environment, authenticationMethod
 	session.Stderr = &stderr
 	err = session.Run(command)
 	if err != nil {
-		return nil, err
+		return nil, errors.New(fmt.Sprintf("%s: %s", err.Error(), stderr.String()))
 	}
 
 	return stdout.Bytes(), nil

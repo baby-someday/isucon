@@ -183,7 +183,6 @@ func CopyFromRemote(ctx context.Context, writer io.Writer, host, remotePath stri
 
 		client, err := NewClient(host, authenticationMethod)
 		if err != nil {
-			log.Println(err.Error())
 			errorChannel <- err
 			return
 		}

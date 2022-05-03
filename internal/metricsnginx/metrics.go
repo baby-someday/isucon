@@ -6,9 +6,46 @@ import (
 	"github.com/baby-someday/isucon/pkg/remote"
 )
 
-func CopyFiles(network remote.Network) error {
-	return nginx.CopyLogFiles(
-		output.GetNginxMetricsDirPath(),
-		network,
-	)
+func CopyFiles(servers []remote.Server) error {
+	for _, server := range servers {
+		authenticationMethod, err := remote.MakeAuthenticationMethod(server)
+		if err != nil {
+			return err
+		}
+
+		err = nginx.CopyLogFiles(
+			output.GetNginxMetricsDirPath(),
+			server.Host,
+			server.Nginx.Log.Access,
+			server.Nginx.Log.Error,
+			server.Nginx.Log.Persistence.Access,
+			server.Nginx.Log.Persistence.Error,
+			authenticationMethod,
+		)
+		if err != nil {
+			return err
+		}
+
+		err = nginx.RotateLogFile(
+			server.Host,
+			server.Nginx.Log.Access,
+			server.Nginx.Log.Persistence.Access,
+			authenticationMethod,
+		)
+		if err != nil {
+			return err
+		}
+
+		err = nginx.RotateLogFile(
+			server.Host,
+			server.Nginx.Log.Error,
+			server.Nginx.Log.Persistence.Error,
+			authenticationMethod,
+		)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

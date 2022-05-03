@@ -19,49 +19,52 @@ func RotateLogFile(host, logFilePath, persistenceLogFilePath string, authenticat
 	return err
 }
 
-func CopyLogFiles(outputDirPath string, network remote.Network) error {
-	for _, server := range network.Servers {
-		authenticationMethod, err := remote.MakeAuthenticationMethod(server)
-		if err != nil {
-			return err
-		}
-		err = copyLogFile(
-			server.Host,
-			path.Join(outputDirPath, server.Host, "access.log"),
-			server.Nginx.Log.Access,
-			authenticationMethod,
-		)
-		if err != nil {
-			return err
-		}
-		err = copyLogFile(
-			server.Host,
-			path.Join(outputDirPath, server.Host, "error.log"),
-			server.Nginx.Log.Error,
-			authenticationMethod,
-		)
-		if err != nil {
-			return err
-		}
-		err = copyLogFile(
-			server.Host,
-			path.Join(outputDirPath, server.Host, "access.all.log"),
-			server.Nginx.Log.Persistence.Access,
-			authenticationMethod,
-		)
-		if err != nil {
-			return err
-		}
-		err = copyLogFile(
-			server.Host,
-			path.Join(outputDirPath, server.Host, "error.all.log"),
-			server.Nginx.Log.Persistence.Error,
-			authenticationMethod,
-		)
-		if err != nil {
-			return err
-		}
+func CopyLogFiles(
+	outputDirPath,
+	host,
+	remoteAccessLogPath,
+	remoteErrorLogPath,
+	remotePersistenceAccessLogPath,
+	remotePersistenceErrorLogPath string,
+	authenticationMethod remote.AuthenticationMethod,
+) error {
+	err := copyLogFile(
+		host,
+		path.Join(outputDirPath, host, "access.log"),
+		remoteAccessLogPath,
+		authenticationMethod,
+	)
+	if err != nil {
+		return err
 	}
+	err = copyLogFile(
+		host,
+		path.Join(outputDirPath, host, "error.log"),
+		remoteErrorLogPath,
+		authenticationMethod,
+	)
+	if err != nil {
+		return err
+	}
+	err = copyLogFile(
+		host,
+		path.Join(outputDirPath, host, "access.all.log"),
+		remotePersistenceAccessLogPath,
+		authenticationMethod,
+	)
+	if err != nil {
+		return err
+	}
+	err = copyLogFile(
+		host,
+		path.Join(outputDirPath, host, "error.all.log"),
+		remotePersistenceErrorLogPath,
+		authenticationMethod,
+	)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 

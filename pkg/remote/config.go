@@ -9,6 +9,7 @@ type Server struct {
 	Authentication string        `yaml:"authentication"`
 	SSH            SSH           `yaml:"ssh"`
 	Nginx          Nginx         `yaml:"nginx"`
+	Git            Git           `yaml:"git"`
 	Environments   []Environment `yaml:"environments"`
 }
 
@@ -31,6 +32,10 @@ type NginxLog struct {
 type NginxPersistenceLog struct {
 	Access string `yaml:"access"`
 	Error  string `yaml:"error"`
+}
+
+type Git struct {
+	Bin string `yaml:"bin"`
 }
 
 type Environment struct {
