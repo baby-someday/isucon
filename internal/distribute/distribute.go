@@ -9,6 +9,8 @@ import (
 	"path"
 
 	"github.com/baby-someday/isucon/pkg/build"
+	"github.com/baby-someday/isucon/pkg/nginx"
+	"github.com/baby-someday/isucon/pkg/output"
 	"github.com/baby-someday/isucon/pkg/remote"
 	"golang.org/x/crypto/ssh"
 )
@@ -33,7 +35,7 @@ func Distribute(ctx context.Context, network remote.Network, src, dst, lock, com
 		return err
 	}
 
-	zipPath := path.Join(getOutputPath(), path.Base(src)+".zip")
+	zipPath := path.Join(output.GetDistributeOutputDirPath(), path.Base(src)+".zip")
 	err = build.Compress(src, zipPath, ignore)
 	if err != nil {
 		return err
@@ -44,6 +46,26 @@ func Distribute(ctx context.Context, network remote.Network, src, dst, lock, com
 	// TODO: Closeちゃんとやる
 	for _, server := range network.Servers {
 		authenticationMethod, err := remote.MakeAuthenticationMethod(server)
+		if err != nil {
+			return err
+		}
+
+		err = nginx.RotateLogFile(
+			server.Host,
+			server.Nginx.Log.Access,
+			server.Nginx.Log.Persistence.Access,
+			authenticationMethod,
+		)
+		if err != nil {
+			return err
+		}
+
+		err = nginx.RotateLogFile(
+			server.Host,
+			server.Nginx.Log.Error,
+			server.Nginx.Log.Persistence.Error,
+			authenticationMethod,
+		)
 		if err != nil {
 			return err
 		}
@@ -59,14 +81,12 @@ func Distribute(ctx context.Context, network remote.Network, src, dst, lock, com
 			return err
 		}
 
-		client, session, err := newSession(
+		client, session, err := remote.NewSession(
 			server.Host,
 			server.Environments,
 			authenticationMethod,
 		)
-		if err != nil {
-			return err
-		}
+
 		stdoutPipe, err := session.StdoutPipe()
 		if err != nil {
 			return err
@@ -76,7 +96,7 @@ func Distribute(ctx context.Context, network remote.Network, src, dst, lock, com
 			return err
 		}
 
-		stdoutFilePath := path.Join(getOutputPath(), server.Host, "stdout")
+		stdoutFilePath := path.Join(output.GetDistributeOutputDirPath(), server.Host, "stdout")
 		err = os.MkdirAll(path.Dir(stdoutFilePath), 0755)
 		if err != nil {
 			return err
@@ -86,7 +106,7 @@ func Distribute(ctx context.Context, network remote.Network, src, dst, lock, com
 			return err
 		}
 
-		stderrFilePath := path.Join(getOutputPath(), server.Host, "stderr")
+		stderrFilePath := path.Join(output.GetDistributeOutputDirPath(), server.Host, "stderr")
 		err = os.MkdirAll(path.Dir(stderrFilePath), 0755)
 		if err != nil {
 			return err
@@ -137,6 +157,14 @@ func Distribute(ctx context.Context, network remote.Network, src, dst, lock, com
 		process.stderrFile.Close()
 		process.session.Close()
 		process.client.Close()
+	}
+
+	err = nginx.CopyLogFiles(
+		output.GetNginxMetricsDirPath(),
+		network,
+	)
+	if err != nil {
+		return err
 	}
 
 	err = tryToUnlock(
@@ -190,25 +218,4 @@ func tryToUnlock(lock string, network remote.Network) error {
 	}
 
 	return nil
-}
-
-func newSession(host string, environments []remote.Environment, authenticationMethod remote.AuthenticationMethod) (*ssh.Client, *ssh.Session, error) {
-	client, err := remote.NewClient(host, authenticationMethod)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	session, err := client.NewSession()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	for _, environment := range environments {
-		err = session.Setenv(environment.Name, environment.Value)
-		if err != nil {
-			return nil, nil, err
-		}
-	}
-
-	return client, session, nil
 }

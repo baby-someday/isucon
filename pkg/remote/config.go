@@ -23,6 +23,12 @@ type Nginx struct {
 }
 
 type NginxLog struct {
+	Access      string              `yaml:"access"`
+	Error       string              `yaml:"error"`
+	Persistence NginxPersistenceLog `yaml:"persistence"`
+}
+
+type NginxPersistenceLog struct {
 	Access string `yaml:"access"`
 	Error  string `yaml:"error"`
 }
