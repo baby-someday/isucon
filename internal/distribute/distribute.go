@@ -10,6 +10,7 @@ import (
 	"path"
 	"strconv"
 
+	"github.com/baby-someday/isucon/internal/metricscpu"
 	"github.com/baby-someday/isucon/internal/metricsnginx"
 	"github.com/baby-someday/isucon/pkg/build"
 	"github.com/baby-someday/isucon/pkg/github"
@@ -56,6 +57,7 @@ func DistributeFromLocal(
 		command,
 		ignore,
 		[]action{
+			makeCPUMetricsAction(network.Servers),
 			makeNginxMetricsAction(network.Servers),
 		},
 		deloyFromLocal(
@@ -91,6 +93,7 @@ func DistributeFromGitHub(
 		command,
 		ignore,
 		[]action{
+			makeCPUMetricsAction(network.Servers),
 			makeNginxMetricsAction(network.Servers),
 			makeSaveScoreAction(
 				githubToken,
@@ -195,17 +198,11 @@ func distribute(
 			stderrFile: stderrFile,
 		})
 
-		go func() {
-			io.Copy(stdoutFile, stdoutPipe)
-		}()
+		go io.Copy(stdoutFile, stdoutPipe)
 
-		go func() {
-			io.Copy(stderrFile, stderrPipe)
-		}()
+		go io.Copy(stderrFile, stderrPipe)
 
-		go func() {
-			session.Run(command)
-		}()
+		go session.Run(command)
 	}
 
 	for {
@@ -255,7 +252,13 @@ func distribute(
 	return nil
 }
 
-func deloyFromLocal(ctx context.Context, network remote.Network, src, dst string, ignore []string) func() error {
+func deloyFromLocal(
+	ctx context.Context,
+	network remote.Network,
+	src,
+	dst string,
+	ignore []string,
+) func() error {
 	return func() error {
 		zipPath := path.Join(output.GetDistributeOutputDirPath(), path.Base(src)+".zip")
 		err := build.Compress(src, zipPath, ignore)
@@ -284,7 +287,14 @@ func deloyFromLocal(ctx context.Context, network remote.Network, src, dst string
 	}
 }
 
-func deloyFromGitHub(ctx context.Context, network remote.Network, repositoryOwner, repositoryName, branch, dst string) func() error {
+func deloyFromGitHub(
+	ctx context.Context,
+	network remote.Network,
+	repositoryOwner,
+	repositoryName,
+	branch,
+	dst string,
+) func() error {
 	return func() error {
 		for _, server := range network.Servers {
 			authenticationMethod, err := remote.MakeAuthenticationMethod(server)
@@ -337,7 +347,10 @@ func tryToLock(lock string, network remote.Network) error {
 	return nil
 }
 
-func tryToUnlock(lock string, network remote.Network) error {
+func tryToUnlock(
+	lock string,
+	network remote.Network,
+) error {
 	for _, server := range network.Servers {
 		authenticationMethod, err := remote.MakeAuthenticationMethod(server)
 		// TODO Unlockちゃんとやる
@@ -358,6 +371,33 @@ func tryToUnlock(lock string, network remote.Network) error {
 	return nil
 }
 
+func makeCPUMetricsAction(servers []remote.Server) action {
+	return action{
+		name: "metrics-cpu",
+		callback: func() error {
+			var interval int64
+			for {
+				println("🤖    何秒間隔で取得しますか？")
+				var in string
+				fmt.Scan(&in)
+				var err error
+				interval, err = strconv.ParseInt(in, 10, 64)
+				if err != nil {
+					continue
+				}
+				break
+			}
+
+			err := metricscpu.MeasureMetrics(int(interval), servers)
+			if err != nil {
+				log.Println("CPUのメトリクス取得に失敗しました。")
+				return err
+			}
+			return nil
+		},
+	}
+}
+
 func makeNginxMetricsAction(servers []remote.Server) action {
 	return action{
 		name: "metrics-nginx",
@@ -372,7 +412,14 @@ func makeNginxMetricsAction(servers []remote.Server) action {
 	}
 }
 
-func makeSaveScoreAction(githubToken, repositoryOwner, repositoryName, repositoryBranch, slackToken, slackChannel string) action {
+func makeSaveScoreAction(
+	githubToken,
+	repositoryOwner,
+	repositoryName,
+	repositoryBranch,
+	slackToken,
+	slackChannel string,
+) action {
 	return action{
 		name: "save-score",
 		callback: func() error {
