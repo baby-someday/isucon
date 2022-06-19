@@ -14,9 +14,9 @@ type Server struct {
 }
 
 type SSH struct {
-	User          string `yaml:"user"`
-	Password      string `yaml:"password"`
-	PublicKeyPath string `yaml:"pubkey"`
+	User           string `yaml:"user"`
+	Password       string `yaml:"password"`
+	PrivateKeyPath string `yaml:"privatekey"`
 }
 
 type Nginx struct {

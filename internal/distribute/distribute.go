@@ -158,6 +158,9 @@ func distribute(
 			server.Environments,
 			authenticationMethod,
 		)
+		if err != nil {
+			return err
+		}
 
 		stdoutPipe, err := session.StdoutPipe()
 		if err != nil {

@@ -5,7 +5,11 @@ import (
 )
 
 func NewClient(host string, authenticationMethod AuthenticationMethod) (*ssh.Client, error) {
-	return ssh.Dial("tcp", host+":22", authenticationMethod.makeConfig())
+	clientConfig, err := authenticationMethod.makeConfig()
+	if err != nil {
+		return nil, err
+	}
+	return ssh.Dial("tcp", host+":22", clientConfig)
 }
 
 func NewSession(host string, environments []Environment, authenticationMethod AuthenticationMethod) (*ssh.Client, *ssh.Session, error) {

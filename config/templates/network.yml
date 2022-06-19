@@ -4,6 +4,7 @@ servers:
     ssh:
       user:
       password:
+      privatekey:
     nginx:
       log:
         access:
@@ -19,6 +20,7 @@ servers:
     ssh:
       user:
       password:
+      privatekey:
     nginx:
       log:
         access:
