@@ -7,12 +7,14 @@ import (
 	"os"
 	"path"
 	"strings"
+
+	"github.com/baby-someday/isucon/pkg/util"
 )
 
 func Compress(src, dst string, ignore []string) error {
 	dstFile, err := os.Create(dst)
 	if err != nil {
-		return err
+		return util.HandleError(err)
 	}
 	defer dstFile.Close()
 
@@ -21,7 +23,7 @@ func Compress(src, dst string, ignore []string) error {
 
 	err = archive(src, src, ignore, zipWriter)
 	if err != nil {
-		return err
+		return util.HandleError(err)
 	}
 
 	return nil
@@ -31,7 +33,7 @@ func archive(dir, p string, ignore []string, zipWriter *zip.Writer) error {
 	// TODO: 変数名ちゃんとつける
 	fileInfos, err := ioutil.ReadDir(p)
 	if err != nil {
-		return err
+		return util.HandleError(err)
 	}
 
 	for _, fileInfo := range fileInfos {
@@ -52,7 +54,7 @@ func archive(dir, p string, ignore []string, zipWriter *zip.Writer) error {
 		if fileInfo.IsDir() {
 			err = archive(dir, fp, ignore, zipWriter)
 			if err != nil {
-				return err
+				return util.HandleError(err)
 			}
 			continue
 		}
@@ -60,39 +62,39 @@ func archive(dir, p string, ignore []string, zipWriter *zip.Writer) error {
 		if fileInfo.Mode()&os.ModeSymlink == os.ModeSymlink {
 			header, err := zip.FileInfoHeader(fileInfo)
 			if err != nil {
-				return err
+				return util.HandleError(err)
 			}
 
 			header.Method = zip.Deflate
 			srcFileWriter, err := zipWriter.CreateHeader(header)
 			if err != nil {
-				return err
+				return util.HandleError(err)
 			}
 
 			link, err := os.Readlink(fp)
 			if err != nil {
-				return err
+				return util.HandleError(err)
 			}
 
 			_, err = srcFileWriter.Write([]byte(link))
 			if err != nil {
-				return err
+				return util.HandleError(err)
 			}
 		} else {
 			srcFile, err := os.Open(fp)
 			if err != nil {
-				return err
+				return util.HandleError(err)
 			}
 			defer srcFile.Close()
 
 			srcFileWriter, err := zipWriter.Create(name)
 			if err != nil {
-				return err
+				return util.HandleError(err)
 			}
 
 			_, err = io.Copy(srcFileWriter, srcFile)
 			if err != nil {
-				return err
+				return util.HandleError(err)
 			}
 		}
 	}

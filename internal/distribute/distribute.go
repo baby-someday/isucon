@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path"
 	"strconv"
@@ -14,9 +13,11 @@ import (
 	"github.com/baby-someday/isucon/internal/metricsnginx"
 	"github.com/baby-someday/isucon/pkg/build"
 	"github.com/baby-someday/isucon/pkg/github"
+	"github.com/baby-someday/isucon/pkg/interaction"
 	"github.com/baby-someday/isucon/pkg/output"
 	"github.com/baby-someday/isucon/pkg/remote"
 	"github.com/baby-someday/isucon/pkg/slack"
+	"github.com/baby-someday/isucon/pkg/util"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -114,7 +115,7 @@ func DistributeFromGitHub(
 		),
 	)
 	if err != nil {
-		return err
+		return util.HandleError(err)
 	}
 
 	return nil
@@ -130,27 +131,45 @@ func distribute(
 	actions []action,
 	deploy func() error,
 ) error {
+	interaction.Message("ロックの取得を開始します。")
 	err := tryToLock(
 		lock,
 		network,
 	)
 	if err != nil {
-		log.Println("ロックに失敗しました、他のベンチマークが実行中です。")
-		return err
+		interaction.Error("ロックの取得に失敗しました。")
+		return util.HandleError(err)
 	}
+	interaction.Message("ロックを取得しました。")
 
+	defer func() {
+		interaction.Message("ロックの解除を開始します。")
+		err := tryToUnlock(
+			lock,
+			network,
+		)
+		if err != nil {
+			interaction.Error("ロックの解除に失敗しました。")
+			util.HandleError(err)
+			return
+		}
+		interaction.Message("ロックを解除しました。")
+	}()
+
+	interaction.Message("デプロイを開始します。")
 	err = deploy()
 	if err != nil {
-		return err
+		return util.HandleError(err)
 	}
+	interaction.Message("デプロイが完了しました。")
 
 	processes := []process{}
 
-	// TODO: Closeちゃんとやる
 	for _, server := range network.Servers {
+		interaction.Message(fmt.Sprintf("%sへのSSH接続を開始します。", server.Host))
 		authenticationMethod, err := remote.MakeAuthenticationMethod(server)
 		if err != nil {
-			return err
+			return util.HandleError(err)
 		}
 
 		client, session, err := remote.NewSession(
@@ -159,36 +178,36 @@ func distribute(
 			authenticationMethod,
 		)
 		if err != nil {
-			return err
+			return util.HandleError(err)
 		}
 
 		stdoutPipe, err := session.StdoutPipe()
 		if err != nil {
-			return err
+			return util.HandleError(err)
 		}
 		stderrPipe, err := session.StderrPipe()
 		if err != nil {
-			return err
+			return util.HandleError(err)
 		}
 
 		stdoutFilePath := path.Join(output.GetDistributeOutputDirPath(), server.Host, "stdout")
 		err = os.MkdirAll(path.Dir(stdoutFilePath), 0755)
 		if err != nil {
-			return err
+			return util.HandleError(err)
 		}
 		stdoutFile, err := os.Create(stdoutFilePath)
 		if err != nil {
-			return err
+			return util.HandleError(err)
 		}
 
 		stderrFilePath := path.Join(output.GetDistributeOutputDirPath(), server.Host, "stderr")
 		err = os.MkdirAll(path.Dir(stderrFilePath), 0755)
 		if err != nil {
-			return err
+			return util.HandleError(err)
 		}
 		stderrFile, err := os.Create(stderrFilePath)
 		if err != nil {
-			return err
+			return util.HandleError(err)
 		}
 
 		processes = append(processes, process{
@@ -206,19 +225,21 @@ func distribute(
 		go io.Copy(stderrFile, stderrPipe)
 
 		go session.Run(command)
+
+		interaction.Message(fmt.Sprintf("%sへのSSH接続が完了しました。", server.Host))
 	}
 
 	for {
-		println("🤖    操作を選んでください")
-		print("👉    ")
-		for index, action := range actions {
-			print(fmt.Sprintf("%d:%s    ", index, action.name))
-		}
-		print("q:quit")
-		println()
-
-		var in string
-		fmt.Scan(&in)
+		in := interaction.Choose(
+			"操作を選んでください",
+			len(actions)+1,
+			func(index int) (string, string) {
+				if len(actions) <= index {
+					return "q", "quit"
+				}
+				return strconv.Itoa(index), actions[index].name
+			},
+		)
 
 		if in == "q" {
 			break
@@ -231,7 +252,7 @@ func distribute(
 
 		err = actions[index].callback()
 		if err != nil {
-			log.Println(err.Error())
+			interaction.Error(err.Error())
 			continue
 		}
 	}
@@ -242,14 +263,6 @@ func distribute(
 		process.stderrFile.Close()
 		process.session.Close()
 		process.client.Close()
-	}
-
-	err = tryToUnlock(
-		lock,
-		network,
-	)
-	if err != nil {
-		return err
 	}
 
 	return nil
@@ -263,16 +276,21 @@ func deloyFromLocal(
 	ignore []string,
 ) func() error {
 	return func() error {
+		interaction.Message("zipファイルの作成を開始します。")
 		zipPath := path.Join(output.GetDistributeOutputDirPath(), path.Base(src)+".zip")
 		err := build.Compress(src, zipPath, ignore)
 		if err != nil {
-			return err
+			interaction.Message("zipファイルの作成に失敗しました。")
+			return util.HandleError(err)
 		}
+		interaction.Message("zipファイルの作成に成功しました。")
 
+		interaction.Message("プロジェクトのコピーを開始します。")
 		for _, server := range network.Servers {
+			interaction.Message(fmt.Sprintf("%sの処理を開始します。", server.Host))
 			authenticationMethod, err := remote.MakeAuthenticationMethod(server)
 			if err != nil {
-				return err
+				return util.HandleError(err)
 			}
 
 			err = remote.CopyFromLocal(
@@ -283,9 +301,12 @@ func deloyFromLocal(
 				authenticationMethod,
 			)
 			if err != nil {
-				return err
+				return util.HandleError(err)
 			}
+			interaction.Message(fmt.Sprintf("%sの処理が完了しました。", server.Host))
 		}
+		interaction.Message("プロジェクトのコピーが完了しました。")
+
 		return nil
 	}
 }
@@ -300,9 +321,10 @@ func deloyFromGitHub(
 ) func() error {
 	return func() error {
 		for _, server := range network.Servers {
+			interaction.Message(fmt.Sprintf("%sの処理を開始します。", server.Host))
 			authenticationMethod, err := remote.MakeAuthenticationMethod(server)
 			if err != nil {
-				return err
+				return util.HandleError(err)
 			}
 
 			command := fmt.Sprintf(
@@ -322,8 +344,9 @@ func deloyFromGitHub(
 				authenticationMethod,
 			)
 			if err != nil {
-				return err
+				return util.HandleError(err)
 			}
+			interaction.Message(fmt.Sprintf("%sの処理が完了しました。", server.Host))
 		}
 		return nil
 	}
@@ -331,20 +354,20 @@ func deloyFromGitHub(
 
 func tryToLock(lock string, network remote.Network) error {
 	for _, server := range network.Servers {
+		interaction.Message(fmt.Sprintf("%sのロック取得を開始します。", server.Host))
 		authenticationMethod, err := remote.MakeAuthenticationMethod(server)
-		// TODO Unlockちゃんとやる
 		if err != nil {
-			return err
+			return util.HandleError(err)
 		}
 		err = remote.Lock(
 			lock,
 			server.Host,
 			authenticationMethod,
 		)
-		// TODO Unlockちゃんとやる
 		if err != nil {
-			return err
+			return util.HandleError(err)
 		}
+		interaction.Message(fmt.Sprintf("%sのロック取得が完了しました。", server.Host))
 	}
 
 	return nil
@@ -358,7 +381,7 @@ func tryToUnlock(
 		authenticationMethod, err := remote.MakeAuthenticationMethod(server)
 		// TODO Unlockちゃんとやる
 		if err != nil {
-			return err
+			return util.HandleError(err)
 		}
 		err = remote.Unlock(
 			lock,
@@ -367,7 +390,7 @@ func tryToUnlock(
 		)
 		// TODO Unlockちゃんとやる
 		if err != nil {
-			return err
+			return util.HandleError(err)
 		}
 	}
 
@@ -393,8 +416,8 @@ func makeCPUMetricsAction(servers []remote.Server) action {
 
 			err := metricscpu.MeasureMetrics(int(interval), servers)
 			if err != nil {
-				log.Println("CPUのメトリクス取得に失敗しました。")
-				return err
+				interaction.Error("CPUのメトリクス取得に失敗しました。")
+				return util.HandleError(err)
 			}
 			return nil
 		},
@@ -407,8 +430,8 @@ func makeNginxMetricsAction(servers []remote.Server) action {
 		callback: func() error {
 			err := metricsnginx.CopyFiles(servers)
 			if err != nil {
-				log.Println("Nginxのメトリクス取得に失敗しました。")
-				return err
+				interaction.Error("Nginxのメトリクス取得に失敗しました。")
+				return util.HandleError(err)
 			}
 			return nil
 		},
@@ -433,7 +456,7 @@ func makeSaveScoreAction(
 				repositoryBranch,
 			)
 			if err != nil {
-				return err
+				return util.HandleError(err)
 			}
 
 			println("🤖    スコアを入力してください")
@@ -478,12 +501,12 @@ func makeSaveScoreAction(
 				[]string{github.TAG_BENCHMARK, fmt.Sprintf("branch/%s", repositoryBranch), fmt.Sprintf("commit/%s", commit.GetShortSha1())},
 			)
 			if err != nil {
-				return err
+				return util.HandleError(err)
 			}
 
 			issueID, err := postIssueResponse.GetID()
 			if err != nil {
-				return err
+				return util.HandleError(err)
 			}
 			slack.PostMessage(
 				slackToken,

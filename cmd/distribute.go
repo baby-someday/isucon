@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strconv"
 
 	"github.com/baby-someday/isucon/internal/distribute"
 	"github.com/baby-someday/isucon/pkg/github"
+	"github.com/baby-someday/isucon/pkg/interaction"
 	"github.com/baby-someday/isucon/pkg/me"
 	"github.com/baby-someday/isucon/pkg/project"
 	"github.com/baby-someday/isucon/pkg/remote"
@@ -31,8 +33,8 @@ const (
 
 func init() {
 	distributeCmd.Flags().String(
-		FLAG_CONFIG_PATH,
-		FLAG_CONFIG_PATH_DEFAULT,
+		FLAG_DISTRIBUTE_PATH,
+		FLAG_DISTRIBUTE_PATH_DEFAULT,
 		"",
 	)
 	distributeCmd.Flags().String(
@@ -71,7 +73,7 @@ func init() {
 
 func runDistributeCommand(cmd *cobra.Command, args []string) {
 	config := distribute.Config{}
-	err := util.ParseFlag(cmd, FLAG_CONFIG_PATH, &config)
+	err := util.ParseFlag(cmd, FLAG_DISTRIBUTE_PATH, &config)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -146,6 +148,8 @@ func distributeFromLocal(
 	config distribute.Config,
 	network remote.Network,
 ) error {
+	interaction.Message("ローカルからデプロイを開始します。")
+
 	project := project.Project{}
 	err := util.ParseFlag(
 		cmd,
@@ -153,9 +157,9 @@ func distributeFromLocal(
 		&project,
 	)
 	if err != nil {
-		return err
+		return util.HandleError(err)
 	}
-	return distribute.DistributeFromLocal(
+	err = distribute.DistributeFromLocal(
 		context.Background(),
 		network,
 		project.Src,
@@ -164,6 +168,12 @@ func distributeFromLocal(
 		config.Command,
 		config.Ignore,
 	)
+	if err != nil {
+		return util.HandleError(err)
+	}
+
+	interaction.Message("ローカルのデプロイが完了しました。")
+	return nil
 }
 
 func distributeFromGitHub(
@@ -172,6 +182,8 @@ func distributeFromGitHub(
 	config distribute.Config,
 	network remote.Network,
 ) error {
+	interaction.Message("GitHubからデプロイを開始します。")
+
 	github := github.GitHub{}
 	err := util.ParseFlag(
 		cmd,
@@ -179,7 +191,7 @@ func distributeFromGitHub(
 		&github,
 	)
 	if err != nil {
-		return err
+		return util.HandleError(err)
 	}
 
 	slack := slack.Slack{}
@@ -189,24 +201,26 @@ func distributeFromGitHub(
 		&slack,
 	)
 	if err != nil {
-		return err
+		return util.HandleError(err)
 	}
 
-	println("🤖    どのブランチをデプロイしますか？")
-	print("👉    ")
-	for index, branch := range github.Repository.Branches {
-		print(fmt.Sprintf("%d:%s    ", index, branch))
+	indexString := interaction.Choose(
+		"どのブランチをデプロイしますか？",
+		len(github.Repository.Branches),
+		func(index int) (string, string) {
+			return strconv.Itoa(index), github.Repository.Branches[index]
+		},
+	)
+	index, err := strconv.Atoi(indexString)
+	if err != nil {
+		return util.HandleError(err)
 	}
-	println()
-
-	var index int
-	fmt.Scan(&index)
 
 	if len(github.Repository.Branches) <= index {
 		return errors.New("bad index")
 	}
 
-	return distribute.DistributeFromGitHub(
+	err = distribute.DistributeFromGitHub(
 		ctx,
 		network,
 		github.Token,
@@ -221,4 +235,10 @@ func distributeFromGitHub(
 		config.Command,
 		config.Ignore,
 	)
+	if err != nil {
+		return util.HandleError(err)
+	}
+
+	interaction.Message("GitHubのデプロイが完了しました。")
+	return nil
 }

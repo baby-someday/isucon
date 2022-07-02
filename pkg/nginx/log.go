@@ -7,6 +7,7 @@ import (
 	"path"
 
 	"github.com/baby-someday/isucon/pkg/remote"
+	"github.com/baby-someday/isucon/pkg/util"
 )
 
 func RotateLogFile(host, logFilePath, persistenceLogFilePath string, authenticationMethod remote.AuthenticationMethod) error {
@@ -16,7 +17,7 @@ func RotateLogFile(host, logFilePath, persistenceLogFilePath string, authenticat
 		make([]remote.Environment, 0),
 		authenticationMethod,
 	)
-	return err
+	return util.HandleError(err)
 }
 
 func CopyLogFiles(
@@ -35,7 +36,7 @@ func CopyLogFiles(
 		authenticationMethod,
 	)
 	if err != nil {
-		return err
+		return util.HandleError(err)
 	}
 	err = copyLogFile(
 		host,
@@ -44,7 +45,7 @@ func CopyLogFiles(
 		authenticationMethod,
 	)
 	if err != nil {
-		return err
+		return util.HandleError(err)
 	}
 	err = copyLogFile(
 		host,
@@ -53,7 +54,7 @@ func CopyLogFiles(
 		authenticationMethod,
 	)
 	if err != nil {
-		return err
+		return util.HandleError(err)
 	}
 	err = copyLogFile(
 		host,
@@ -62,7 +63,7 @@ func CopyLogFiles(
 		authenticationMethod,
 	)
 	if err != nil {
-		return err
+		return util.HandleError(err)
 	}
 
 	return nil
@@ -71,11 +72,11 @@ func CopyLogFiles(
 func copyLogFile(host, localPath, remotePath string, authenticationMethod remote.AuthenticationMethod) error {
 	err := os.MkdirAll(path.Dir(localPath), 0755)
 	if err != nil {
-		return err
+		return util.HandleError(err)
 	}
 	file, err := os.Create(localPath)
 	if err != nil {
-		return err
+		return util.HandleError(err)
 	}
 	return remote.CopyFromRemote(
 		context.Background(),

@@ -8,6 +8,7 @@ import (
 
 	"github.com/baby-someday/isucon/pkg/output"
 	"github.com/baby-someday/isucon/pkg/remote"
+	"github.com/baby-someday/isucon/pkg/util"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -24,7 +25,7 @@ func MeasureMetrics(interval int, servers []remote.Server) error {
 			server,
 		)
 		if err != nil {
-			return err
+			return util.HandleError(err)
 		}
 
 		client, session, err := remote.NewSession(
@@ -33,23 +34,23 @@ func MeasureMetrics(interval int, servers []remote.Server) error {
 			authenticationMethod,
 		)
 		if err != nil {
-			return err
+			return util.HandleError(err)
 		}
 
 		stdoutPipe, err := session.StdoutPipe()
 		if err != nil {
-			return err
+			return util.HandleError(err)
 		}
 
 		vmstatFilePath := path.Join(output.GetCPUMetricsDirPath(), server.Host, "vmstat")
 		err = os.MkdirAll(path.Dir(vmstatFilePath), 0755)
 		if err != nil {
-			return err
+			return util.HandleError(err)
 		}
 
 		vmstatFile, err := os.Create(vmstatFilePath)
 		if err != nil {
-			return err
+			return util.HandleError(err)
 		}
 
 		go io.Copy(vmstatFile, stdoutPipe)

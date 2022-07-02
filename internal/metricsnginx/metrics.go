@@ -4,13 +4,14 @@ import (
 	"github.com/baby-someday/isucon/pkg/nginx"
 	"github.com/baby-someday/isucon/pkg/output"
 	"github.com/baby-someday/isucon/pkg/remote"
+	"github.com/baby-someday/isucon/pkg/util"
 )
 
 func CopyFiles(servers []remote.Server) error {
 	for _, server := range servers {
 		authenticationMethod, err := remote.MakeAuthenticationMethod(server)
 		if err != nil {
-			return err
+			return util.HandleError(err)
 		}
 
 		err = nginx.CopyLogFiles(
@@ -23,7 +24,7 @@ func CopyFiles(servers []remote.Server) error {
 			authenticationMethod,
 		)
 		if err != nil {
-			return err
+			return util.HandleError(err)
 		}
 
 		err = nginx.RotateLogFile(
@@ -33,7 +34,7 @@ func CopyFiles(servers []remote.Server) error {
 			authenticationMethod,
 		)
 		if err != nil {
-			return err
+			return util.HandleError(err)
 		}
 
 		err = nginx.RotateLogFile(
@@ -43,7 +44,7 @@ func CopyFiles(servers []remote.Server) error {
 			authenticationMethod,
 		)
 		if err != nil {
-			return err
+			return util.HandleError(err)
 		}
 	}
 

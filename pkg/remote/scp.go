@@ -6,12 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/baby-someday/isucon/pkg/interaction"
+	"github.com/baby-someday/isucon/pkg/util"
 )
 
 type fileInfos struct {
@@ -73,30 +75,30 @@ const (
 func CopyFromLocal(ctx context.Context, host, src, dst string, authenticationMethod AuthenticationMethod) error {
 	file, err := os.Open(src)
 	if err != nil {
-		return err
+		return util.HandleError(err)
 	}
 	defer file.Close()
 
 	stat, err := file.Stat()
 	if err != nil {
-		return err
+		return util.HandleError(err)
 	}
 
 	client, err := NewClient(host, authenticationMethod)
 	if err != nil {
-		return err
+		return util.HandleError(err)
 	}
 	defer client.Close()
 
 	session, err := client.NewSession()
 	if err != nil {
-		return err
+		return util.HandleError(err)
 	}
 	defer session.Close()
 
 	stdout, err := session.StdoutPipe()
 	if err != nil {
-		return err
+		return util.HandleError(err)
 	}
 
 	waitGroup := sync.WaitGroup{}
@@ -109,7 +111,7 @@ func CopyFromLocal(ctx context.Context, host, src, dst string, authenticationMet
 
 		writer, err := session.StdinPipe()
 		if err != nil {
-			log.Println(err.Error())
+			interaction.Error(err.Error())
 			return
 		}
 		defer writer.Close()
@@ -154,13 +156,13 @@ func CopyFromLocal(ctx context.Context, host, src, dst string, authenticationMet
 	}()
 
 	if err = wait(ctx, &waitGroup); err != nil {
-		return err
+		return util.HandleError(err)
 	}
 
 	close(errorChannel)
 	for err := range errorChannel {
 		if err != nil {
-			return err
+			return util.HandleError(err)
 		}
 	}
 
@@ -262,7 +264,7 @@ func CopyFromRemote(ctx context.Context, writer io.Writer, host, remotePath stri
 	}()
 
 	if err := wait(ctx, &waitGroup); err != nil {
-		return err
+		return util.HandleError(err)
 	}
 	finalErr := <-errorChannel
 	close(errorChannel)
@@ -288,7 +290,7 @@ func wait(ctx context.Context, waitGroup *sync.WaitGroup) error {
 func checkResponse(reader io.Reader) error {
 	response, err := parseResponse(reader)
 	if err != nil {
-		return err
+		return util.HandleError(err)
 	}
 
 	if response.isFailure() {
@@ -322,7 +324,7 @@ func ack(writer io.Writer) error {
 	var msg = []byte{0}
 	n, err := writer.Write(msg)
 	if err != nil {
-		return err
+		return util.HandleError(err)
 	}
 	if n < len(msg) {
 		return errors.New("failed to write ack buffer")
