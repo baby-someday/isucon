@@ -5,33 +5,50 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"time"
 
 	"github.com/baby-someday/isucon/pkg/remote"
 	"github.com/baby-someday/isucon/pkg/util"
 )
 
-func RotateLogFile(host, logFilePath, persistenceLogFilePath string, authenticationMethod remote.AuthenticationMethod) error {
+func RotateLogFile(host, logFilePath string, authenticationMethod remote.AuthenticationMethod) error {
 	_, err := remote.Exec(
 		host,
-		fmt.Sprintf("cat %s >> %s && echo \"\" > %s", logFilePath, persistenceLogFilePath, logFilePath),
+		fmt.Sprintf("echo \"\" > %s", logFilePath),
 		make([]remote.Environment, 0),
 		authenticationMethod,
 	)
-	return util.HandleError(err)
+	if err != nil {
+		return util.HandleError(err)
+	}
+	return nil
+}
+
+func Restart(host, nginxBin string, authenticationMethod remote.AuthenticationMethod) error {
+	_, err := remote.Exec(
+		host,
+		fmt.Sprintf("sudo %s -s reopen", nginxBin),
+		make([]remote.Environment, 0),
+		authenticationMethod,
+	)
+	if err != nil {
+		return util.HandleError(err)
+	}
+	return nil
 }
 
 func CopyLogFiles(
 	outputDirPath,
 	host,
 	remoteAccessLogPath,
-	remoteErrorLogPath,
-	remotePersistenceAccessLogPath,
-	remotePersistenceErrorLogPath string,
+	remoteErrorLogPath string,
 	authenticationMethod remote.AuthenticationMethod,
 ) error {
+	now := time.Now()
+	timestamp := now.Format("2006-01-02_15:04:05")
 	err := copyLogFile(
 		host,
-		path.Join(outputDirPath, host, "access.log"),
+		path.Join(outputDirPath, host, fmt.Sprintf("access_%s.log", timestamp)),
 		remoteAccessLogPath,
 		authenticationMethod,
 	)
@@ -40,26 +57,8 @@ func CopyLogFiles(
 	}
 	err = copyLogFile(
 		host,
-		path.Join(outputDirPath, host, "error.log"),
+		path.Join(outputDirPath, host, fmt.Sprintf("error_%s.log", timestamp)),
 		remoteErrorLogPath,
-		authenticationMethod,
-	)
-	if err != nil {
-		return util.HandleError(err)
-	}
-	err = copyLogFile(
-		host,
-		path.Join(outputDirPath, host, "access.all.log"),
-		remotePersistenceAccessLogPath,
-		authenticationMethod,
-	)
-	if err != nil {
-		return util.HandleError(err)
-	}
-	err = copyLogFile(
-		host,
-		path.Join(outputDirPath, host, "error.all.log"),
-		remotePersistenceErrorLogPath,
 		authenticationMethod,
 	)
 	if err != nil {

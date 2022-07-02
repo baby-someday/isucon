@@ -365,6 +365,7 @@ func tryToLock(lock string, network remote.Network) error {
 			authenticationMethod,
 		)
 		if err != nil {
+			interaction.Error(fmt.Sprintf("%sのロック取得に失敗しました。", server.Host))
 			return util.HandleError(err)
 		}
 		interaction.Message(fmt.Sprintf("%sのロック取得が完了しました。", server.Host))
@@ -378,9 +379,10 @@ func tryToUnlock(
 	network remote.Network,
 ) error {
 	for _, server := range network.Servers {
+		interaction.Message(fmt.Sprintf("%sのロック解除を開始します。", server.Host))
 		authenticationMethod, err := remote.MakeAuthenticationMethod(server)
-		// TODO Unlockちゃんとやる
 		if err != nil {
+			interaction.Error(fmt.Sprintf("%sのロック解除に失敗しました。", server.Host))
 			return util.HandleError(err)
 		}
 		err = remote.Unlock(
@@ -388,10 +390,11 @@ func tryToUnlock(
 			server.Host,
 			authenticationMethod,
 		)
-		// TODO Unlockちゃんとやる
 		if err != nil {
+			interaction.Error(fmt.Sprintf("%sのロック解除に失敗しました。", server.Host))
 			return util.HandleError(err)
 		}
+		interaction.Message(fmt.Sprintf("%sのロック解除が完了しました。", server.Host))
 	}
 
 	return nil

@@ -20,13 +20,13 @@ type SSH struct {
 }
 
 type Nginx struct {
+	Bin string   `yaml:"bin"`
 	Log NginxLog `yaml:"log"`
 }
 
 type NginxLog struct {
-	Access      string              `yaml:"access"`
-	Error       string              `yaml:"error"`
-	Persistence NginxPersistenceLog `yaml:"persistence"`
+	Access string `yaml:"access"`
+	Error  string `yaml:"error"`
 }
 
 type NginxPersistenceLog struct {

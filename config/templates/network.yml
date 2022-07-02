@@ -6,10 +6,8 @@ servers:
       password:
       privatekey:
     nginx:
+      bin:
       log:
-        access:
-        error:
-      persistence:
         access:
         error:
     environments:
