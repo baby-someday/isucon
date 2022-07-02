@@ -43,17 +43,18 @@ func CopyLogFiles(
 	remoteAccessLogPath,
 	remoteErrorLogPath string,
 	authenticationMethod remote.AuthenticationMethod,
-) error {
+) (string, error) {
 	now := time.Now()
 	timestamp := now.Format("2006-01-02_15:04:05")
+	accessLogFilePath := path.Join(outputDirPath, host, fmt.Sprintf("access_%s.log", timestamp))
 	err := copyLogFile(
 		host,
-		path.Join(outputDirPath, host, fmt.Sprintf("access_%s.log", timestamp)),
+		accessLogFilePath,
 		remoteAccessLogPath,
 		authenticationMethod,
 	)
 	if err != nil {
-		return util.HandleError(err)
+		return "", util.HandleError(err)
 	}
 	err = copyLogFile(
 		host,
@@ -62,10 +63,10 @@ func CopyLogFiles(
 		authenticationMethod,
 	)
 	if err != nil {
-		return util.HandleError(err)
+		return "", util.HandleError(err)
 	}
 
-	return nil
+	return accessLogFilePath, nil
 }
 
 func copyLogFile(host, localPath, remotePath string, authenticationMethod remote.AuthenticationMethod) error {
