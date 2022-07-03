@@ -1,4 +1,4 @@
-package nginx
+package mysql
 
 import (
 	"context"
@@ -24,10 +24,10 @@ func RotateLogFile(host, logFilePath string, authenticationMethod remote.Authent
 	return nil
 }
 
-func Reopen(host, nginxBin string, authenticationMethod remote.AuthenticationMethod) error {
+func FlushLogs(host, mysqlAdminBin, defaultsFilePath string, authenticationMethod remote.AuthenticationMethod) error {
 	_, err := remote.Exec(
 		host,
-		fmt.Sprintf("sudo %s -s reopen", nginxBin),
+		fmt.Sprintf("sudo %s --defaults-file=%s flush-logs", mysqlAdminBin, defaultsFilePath),
 		make([]remote.Environment, 0),
 		authenticationMethod,
 	)
@@ -40,33 +40,23 @@ func Reopen(host, nginxBin string, authenticationMethod remote.AuthenticationMet
 func CopyLogFiles(
 	outputDirPath,
 	host,
-	remoteAccessLogPath,
-	remoteErrorLogPath string,
+	remoteSlowQueryLogFilePath string,
 	authenticationMethod remote.AuthenticationMethod,
 ) (string, error) {
 	now := time.Now()
 	timestamp := now.Format("2006-01-02_15:04:05")
-	accessLogFilePath := path.Join(outputDirPath, host, fmt.Sprintf("access_%s.log", timestamp))
+	localSlowQueryLogFilePath := path.Join(outputDirPath, host, fmt.Sprintf("slow_%s.log", timestamp))
 	err := copyLogFile(
 		host,
-		accessLogFilePath,
-		remoteAccessLogPath,
-		authenticationMethod,
-	)
-	if err != nil {
-		return "", util.HandleError(err)
-	}
-	err = copyLogFile(
-		host,
-		path.Join(outputDirPath, host, fmt.Sprintf("error_%s.log", timestamp)),
-		remoteErrorLogPath,
+		localSlowQueryLogFilePath,
+		remoteSlowQueryLogFilePath,
 		authenticationMethod,
 	)
 	if err != nil {
 		return "", util.HandleError(err)
 	}
 
-	return accessLogFilePath, nil
+	return localSlowQueryLogFilePath, nil
 }
 
 func copyLogFile(host, localPath, remotePath string, authenticationMethod remote.AuthenticationMethod) error {

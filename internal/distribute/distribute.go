@@ -10,10 +10,12 @@ import (
 	"strconv"
 
 	"github.com/baby-someday/isucon/internal/metricscpu"
+	"github.com/baby-someday/isucon/internal/metricsmysql"
 	"github.com/baby-someday/isucon/internal/metricsnginx"
 	"github.com/baby-someday/isucon/pkg/build"
 	"github.com/baby-someday/isucon/pkg/github"
 	"github.com/baby-someday/isucon/pkg/interaction"
+	"github.com/baby-someday/isucon/pkg/mysql"
 	"github.com/baby-someday/isucon/pkg/nginx"
 	"github.com/baby-someday/isucon/pkg/output"
 	"github.com/baby-someday/isucon/pkg/remote"
@@ -46,6 +48,7 @@ func DistributeFromLocal(
 	ctx context.Context,
 	network remote.Network,
 	nginxConfig nginx.Config,
+	mysqlConfig mysql.Config,
 	src,
 	dst,
 	lock,
@@ -62,6 +65,7 @@ func DistributeFromLocal(
 		[]action{
 			makeCPUMetricsAction(network.Servers),
 			makeNginxMetricsAction(nginxConfig.Servers),
+			makeMySQLMetricsAction(mysqlConfig.Servers),
 		},
 		deloyFromLocal(
 			ctx,
@@ -77,6 +81,7 @@ func DistributeFromGitHub(
 	ctx context.Context,
 	network remote.Network,
 	nginxConfig nginx.Config,
+	mysqlConfig mysql.Config,
 	githubToken,
 	repositoryOwner,
 	repositoryName,
@@ -99,6 +104,7 @@ func DistributeFromGitHub(
 		[]action{
 			makeCPUMetricsAction(network.Servers),
 			makeNginxMetricsAction(nginxConfig.Servers),
+			makeMySQLMetricsAction(mysqlConfig.Servers),
 			makeSaveScoreAction(
 				githubToken,
 				repositoryOwner,
@@ -434,9 +440,23 @@ func makeNginxMetricsAction(servers []nginx.Server) action {
 	return action{
 		name: "metrics-nginx",
 		callback: func() error {
-			err := metricsnginx.CopyFiles(servers)
+			err := metricsnginx.CopyLogFiles(servers)
 			if err != nil {
-				interaction.Error("Nginxのメトリクス取得に失敗しました。")
+				interaction.Error("NGINXのメトリクス取得に失敗しました。")
+				return util.HandleError(err)
+			}
+			return nil
+		},
+	}
+}
+
+func makeMySQLMetricsAction(servers []mysql.Server) action {
+	return action{
+		name: "metrics-mysql",
+		callback: func() error {
+			err := metricsmysql.CopyLogFiles(servers)
+			if err != nil {
+				interaction.Error("MySQLのメトリクス取得に失敗しました。")
 				return util.HandleError(err)
 			}
 			return nil

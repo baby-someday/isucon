@@ -11,6 +11,7 @@ import (
 	"github.com/baby-someday/isucon/pkg/github"
 	"github.com/baby-someday/isucon/pkg/interaction"
 	"github.com/baby-someday/isucon/pkg/me"
+	"github.com/baby-someday/isucon/pkg/mysql"
 	"github.com/baby-someday/isucon/pkg/nginx"
 	"github.com/baby-someday/isucon/pkg/project"
 	"github.com/baby-someday/isucon/pkg/remote"
@@ -56,6 +57,11 @@ func init() {
 	distributeCmd.Flags().String(
 		FLAG_NGINX_PATH,
 		FLAG_NGINX_PATH_DEFAULT,
+		"",
+	)
+	distributeCmd.Flags().String(
+		FLAG_MYSQL_PATH,
+		FLAG_MYSQL_PATH_DEFAULT,
 		"",
 	)
 	distributeCmd.Flags().String(
@@ -176,10 +182,21 @@ func distributeFromLocal(
 		return util.HandleError(err)
 	}
 
+	mysqlConfig := mysql.Config{}
+	err = util.ParseFlag(
+		cmd,
+		FLAG_MYSQL_PATH,
+		&mysqlConfig,
+	)
+	if err != nil {
+		return util.HandleError(err)
+	}
+
 	err = distribute.DistributeFromLocal(
 		context.Background(),
 		network,
 		nginxConfig,
+		mysqlConfig,
 		project.Src,
 		config.Dst,
 		config.Lock,
@@ -207,6 +224,16 @@ func distributeFromGitHub(
 		cmd,
 		FLAG_NGINX_PATH,
 		&nginxConfig,
+	)
+	if err != nil {
+		return util.HandleError(err)
+	}
+
+	mysqlConfig := mysql.Config{}
+	err = util.ParseFlag(
+		cmd,
+		FLAG_MYSQL_PATH,
+		&mysqlConfig,
 	)
 	if err != nil {
 		return util.HandleError(err)
@@ -252,6 +279,7 @@ func distributeFromGitHub(
 		ctx,
 		network,
 		nginxConfig,
+		mysqlConfig,
 		github.Token,
 		github.Repository.Owner,
 		github.Repository.Name,

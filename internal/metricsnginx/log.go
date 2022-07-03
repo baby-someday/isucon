@@ -13,7 +13,7 @@ import (
 	"github.com/baby-someday/isucon/pkg/util"
 )
 
-func CopyFiles(servers []nginx.Server) error {
+func CopyLogFiles(servers []nginx.Server) error {
 	accessLogFilePaths := make([]string, len(servers))
 
 	for index, server := range servers {
@@ -53,7 +53,7 @@ func CopyFiles(servers []nginx.Server) error {
 
 		defer func() {
 			interaction.Message("NGINXのリスタートを開始します。")
-			err := nginx.Restart(
+			err := nginx.Reopen(
 				server.Host,
 				server.Bin,
 				authenticationMethod,
