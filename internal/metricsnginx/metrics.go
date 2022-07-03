@@ -13,12 +13,12 @@ import (
 	"github.com/baby-someday/isucon/pkg/util"
 )
 
-func CopyFiles(servers []remote.Server) error {
+func CopyFiles(servers []nginx.Server) error {
 	accessLogFilePaths := make([]string, len(servers))
 
 	for index, server := range servers {
 		interaction.Message(fmt.Sprintf("%sの処理を開始します。", server.Host))
-		authenticationMethod, err := remote.MakeAuthenticationMethod(server)
+		authenticationMethod, err := remote.MakeAuthenticationMethod(server.SSH)
 		if err != nil {
 			return util.HandleError(err)
 		}
@@ -27,8 +27,8 @@ func CopyFiles(servers []remote.Server) error {
 		accessLogFilePath, err := nginx.CopyLogFiles(
 			output.GetNginxMetricsDirPath(),
 			server.Host,
-			server.Nginx.Log.Access,
-			server.Nginx.Log.Error,
+			server.Log.Access,
+			server.Log.Error,
 			authenticationMethod,
 		)
 		if err != nil {
@@ -42,7 +42,7 @@ func CopyFiles(servers []remote.Server) error {
 		interaction.Message("NGINXアクセスログの入れ替えを開始します。")
 		err = nginx.RotateLogFile(
 			server.Host,
-			server.Nginx.Log.Access,
+			server.Log.Access,
 			authenticationMethod,
 		)
 		if err != nil {
@@ -55,7 +55,7 @@ func CopyFiles(servers []remote.Server) error {
 			interaction.Message("NGINXのリスタートを開始します。")
 			err := nginx.Restart(
 				server.Host,
-				server.Nginx.Bin,
+				server.Bin,
 				authenticationMethod,
 			)
 			if err != nil {
@@ -69,7 +69,7 @@ func CopyFiles(servers []remote.Server) error {
 		interaction.Message("NGINXエラーログの入れ替えを開始します。")
 		err = nginx.RotateLogFile(
 			server.Host,
-			server.Nginx.Log.Error,
+			server.Log.Error,
 			authenticationMethod,
 		)
 		if err != nil {

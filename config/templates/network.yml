@@ -1,6 +1,5 @@
 servers:
   - host:
-    authentication:
     ssh:
       user:
       password:
@@ -8,22 +7,6 @@ servers:
     nginx:
       bin:
       log:
-        access:
-        error:
-    environments:
-      - name:
-        value:
-  - host:
-    authentication:
-    ssh:
-      user:
-      password:
-      privatekey:
-    nginx:
-      log:
-        access:
-        error:
-      persistence:
         access:
         error:
     environments:

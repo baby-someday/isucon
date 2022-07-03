@@ -6,6 +6,12 @@ import (
 	"fmt"
 )
 
+type SSH struct {
+	User           string `yaml:"user"`
+	Password       string `yaml:"password"`
+	PrivateKeyPath string `yaml:"privatekey"`
+}
+
 func Exec(host, command string, environments []Environment, authenticationMethod AuthenticationMethod) ([]uint8, error) {
 	client, session, err := NewSession(host, environments, authenticationMethod)
 	if err != nil {

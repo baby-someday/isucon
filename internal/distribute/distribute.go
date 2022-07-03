@@ -14,6 +14,7 @@ import (
 	"github.com/baby-someday/isucon/pkg/build"
 	"github.com/baby-someday/isucon/pkg/github"
 	"github.com/baby-someday/isucon/pkg/interaction"
+	"github.com/baby-someday/isucon/pkg/nginx"
 	"github.com/baby-someday/isucon/pkg/output"
 	"github.com/baby-someday/isucon/pkg/remote"
 	"github.com/baby-someday/isucon/pkg/slack"
@@ -44,6 +45,7 @@ const (
 func DistributeFromLocal(
 	ctx context.Context,
 	network remote.Network,
+	nginxConfig nginx.Config,
 	src,
 	dst,
 	lock,
@@ -59,7 +61,7 @@ func DistributeFromLocal(
 		ignore,
 		[]action{
 			makeCPUMetricsAction(network.Servers),
-			makeNginxMetricsAction(network.Servers),
+			makeNginxMetricsAction(nginxConfig.Servers),
 		},
 		deloyFromLocal(
 			ctx,
@@ -74,6 +76,7 @@ func DistributeFromLocal(
 func DistributeFromGitHub(
 	ctx context.Context,
 	network remote.Network,
+	nginxConfig nginx.Config,
 	githubToken,
 	repositoryOwner,
 	repositoryName,
@@ -95,7 +98,7 @@ func DistributeFromGitHub(
 		ignore,
 		[]action{
 			makeCPUMetricsAction(network.Servers),
-			makeNginxMetricsAction(network.Servers),
+			makeNginxMetricsAction(nginxConfig.Servers),
 			makeSaveScoreAction(
 				githubToken,
 				repositoryOwner,
@@ -167,7 +170,7 @@ func distribute(
 
 	for _, server := range network.Servers {
 		interaction.Message(fmt.Sprintf("%sへのSSH接続を開始します。", server.Host))
-		authenticationMethod, err := remote.MakeAuthenticationMethod(server)
+		authenticationMethod, err := remote.MakeAuthenticationMethod(server.SSH)
 		if err != nil {
 			return util.HandleError(err)
 		}
@@ -288,7 +291,7 @@ func deloyFromLocal(
 		interaction.Message("プロジェクトのコピーを開始します。")
 		for _, server := range network.Servers {
 			interaction.Message(fmt.Sprintf("%sの処理を開始します。", server.Host))
-			authenticationMethod, err := remote.MakeAuthenticationMethod(server)
+			authenticationMethod, err := remote.MakeAuthenticationMethod(server.SSH)
 			if err != nil {
 				return util.HandleError(err)
 			}
@@ -322,7 +325,7 @@ func deloyFromGitHub(
 	return func() error {
 		for _, server := range network.Servers {
 			interaction.Message(fmt.Sprintf("%sの処理を開始します。", server.Host))
-			authenticationMethod, err := remote.MakeAuthenticationMethod(server)
+			authenticationMethod, err := remote.MakeAuthenticationMethod(server.SSH)
 			if err != nil {
 				return util.HandleError(err)
 			}
@@ -355,7 +358,7 @@ func deloyFromGitHub(
 func tryToLock(lock string, network remote.Network) error {
 	for _, server := range network.Servers {
 		interaction.Message(fmt.Sprintf("%sのロック取得を開始します。", server.Host))
-		authenticationMethod, err := remote.MakeAuthenticationMethod(server)
+		authenticationMethod, err := remote.MakeAuthenticationMethod(server.SSH)
 		if err != nil {
 			return util.HandleError(err)
 		}
@@ -380,7 +383,7 @@ func tryToUnlock(
 ) error {
 	for _, server := range network.Servers {
 		interaction.Message(fmt.Sprintf("%sのロック解除を開始します。", server.Host))
-		authenticationMethod, err := remote.MakeAuthenticationMethod(server)
+		authenticationMethod, err := remote.MakeAuthenticationMethod(server.SSH)
 		if err != nil {
 			interaction.Error(fmt.Sprintf("%sのロック解除に失敗しました。", server.Host))
 			return util.HandleError(err)
@@ -427,7 +430,7 @@ func makeCPUMetricsAction(servers []remote.Server) action {
 	}
 }
 
-func makeNginxMetricsAction(servers []remote.Server) action {
+func makeNginxMetricsAction(servers []nginx.Server) action {
 	return action{
 		name: "metrics-nginx",
 		callback: func() error {

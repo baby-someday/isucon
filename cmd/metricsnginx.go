@@ -1,10 +1,9 @@
 package cmd
 
 import (
-	"log"
-
 	"github.com/baby-someday/isucon/internal/metricsnginx"
-	"github.com/baby-someday/isucon/pkg/remote"
+	"github.com/baby-someday/isucon/pkg/interaction"
+	"github.com/baby-someday/isucon/pkg/nginx"
 	"github.com/baby-someday/isucon/pkg/util"
 	"github.com/spf13/cobra"
 )
@@ -18,8 +17,8 @@ var metricsNginxCmd = &cobra.Command{
 
 func init() {
 	metricsNginxCmd.Flags().String(
-		FLAG_NETWORK_PATH,
-		FLAG_NETWORK_PATH_DEFAULT,
+		FLAG_NGINX_PATH,
+		FLAG_NGINX_PATH_DEFAULT,
 		"",
 	)
 
@@ -27,14 +26,16 @@ func init() {
 }
 
 func runMetricsNginxCommand(cmd *cobra.Command, args []string) {
-	network := remote.Network{}
-	err := util.ParseFlag(cmd, FLAG_NETWORK_PATH, &network)
+	nginxConfig := nginx.Config{}
+	err := util.ParseFlag(cmd, FLAG_NETWORK_PATH, &nginxConfig)
 	if err != nil {
-		log.Fatal(err)
+		interaction.Error(err.Error())
+		return
 	}
 
-	err = metricsnginx.CopyFiles(network.Servers)
+	err = metricsnginx.CopyFiles(nginxConfig.Servers)
 	if err != nil {
-		log.Fatal(err)
+		interaction.Error(err.Error())
+		return
 	}
 }

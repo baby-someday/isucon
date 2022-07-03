@@ -1,0 +1,10 @@
+servers:
+  - host:
+    ssh:
+      user:
+      password:
+      privatekey:
+    bin:
+    log:
+      access:
+      error:

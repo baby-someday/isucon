@@ -1,0 +1,5 @@
+servers:
+  - host:
+    bin:
+    log:
+      slow:

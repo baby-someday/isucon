@@ -2,15 +2,9 @@ package remote
 
 import (
 	"errors"
-	"fmt"
 	"io/ioutil"
 
 	"golang.org/x/crypto/ssh"
-)
-
-const (
-	AUTHENTICATION_METHOD_PASSWORD = "password"
-	AUTHENTICATION_METHOD_KEY      = "key"
 )
 
 type AuthenticationMethod interface {
@@ -55,28 +49,20 @@ func (p KeyAuthentication) makeConfig() (*ssh.ClientConfig, error) {
 	}, nil
 }
 
-func MakeAuthenticationMethod(server Server) (AuthenticationMethod, error) {
+func MakeAuthenticationMethod(config SSH) (AuthenticationMethod, error) {
 	var authenticationMethod AuthenticationMethod
-	switch server.Authentication {
-	case AUTHENTICATION_METHOD_PASSWORD:
-		authenticationMethod = PasswordAuthentication{
-			User:     server.SSH.User,
-			Password: server.SSH.Password,
-		}
-
-	case AUTHENTICATION_METHOD_KEY:
+	if config.PrivateKeyPath != "" {
 		authenticationMethod = KeyAuthentication{
-			User:           server.SSH.User,
-			PrivateKeyPath: server.SSH.PrivateKeyPath,
+			User:           config.User,
+			PrivateKeyPath: config.PrivateKeyPath,
 		}
-		break
-
-	default:
-		return nil, errors.New(fmt.Sprintf(
-			"authentication should be followings: %s, %s",
-			AUTHENTICATION_METHOD_PASSWORD,
-			AUTHENTICATION_METHOD_KEY,
-		))
+	} else if config.Password != "" {
+		authenticationMethod = PasswordAuthentication{
+			User:     config.User,
+			Password: config.Password,
+		}
+	} else {
+		return nil, errors.New("Should specify either ssh.password or ssh.privatekey")
 	}
 
 	return authenticationMethod, nil

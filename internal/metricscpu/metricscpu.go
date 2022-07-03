@@ -21,9 +21,7 @@ type process struct {
 func MeasureMetrics(interval int, servers []remote.Server) error {
 	processes := []process{}
 	for _, server := range servers {
-		authenticationMethod, err := remote.MakeAuthenticationMethod(
-			server,
-		)
+		authenticationMethod, err := remote.MakeAuthenticationMethod(server.SSH)
 		if err != nil {
 			return util.HandleError(err)
 		}

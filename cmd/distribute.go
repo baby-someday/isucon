@@ -11,6 +11,7 @@ import (
 	"github.com/baby-someday/isucon/pkg/github"
 	"github.com/baby-someday/isucon/pkg/interaction"
 	"github.com/baby-someday/isucon/pkg/me"
+	"github.com/baby-someday/isucon/pkg/nginx"
 	"github.com/baby-someday/isucon/pkg/project"
 	"github.com/baby-someday/isucon/pkg/remote"
 	"github.com/baby-someday/isucon/pkg/slack"
@@ -50,6 +51,11 @@ func init() {
 	distributeCmd.Flags().String(
 		FLAG_NETWORK_PATH,
 		FLAG_NETWORK_PATH_DEFAULT,
+		"",
+	)
+	distributeCmd.Flags().String(
+		FLAG_NGINX_PATH,
+		FLAG_NGINX_PATH_DEFAULT,
 		"",
 	)
 	distributeCmd.Flags().String(
@@ -159,9 +165,21 @@ func distributeFromLocal(
 	if err != nil {
 		return util.HandleError(err)
 	}
+
+	nginxConfig := nginx.Config{}
+	err = util.ParseFlag(
+		cmd,
+		FLAG_NGINX_PATH,
+		&nginxConfig,
+	)
+	if err != nil {
+		return util.HandleError(err)
+	}
+
 	err = distribute.DistributeFromLocal(
 		context.Background(),
 		network,
+		nginxConfig,
 		project.Src,
 		config.Dst,
 		config.Lock,
@@ -184,8 +202,18 @@ func distributeFromGitHub(
 ) error {
 	interaction.Message("GitHubからデプロイを開始します。")
 
-	github := github.GitHub{}
+	nginxConfig := nginx.Config{}
 	err := util.ParseFlag(
+		cmd,
+		FLAG_NGINX_PATH,
+		&nginxConfig,
+	)
+	if err != nil {
+		return util.HandleError(err)
+	}
+
+	github := github.GitHub{}
+	err = util.ParseFlag(
 		cmd,
 		FLAG_GITHUB_PATH,
 		&github,
@@ -223,6 +251,7 @@ func distributeFromGitHub(
 	err = distribute.DistributeFromGitHub(
 		ctx,
 		network,
+		nginxConfig,
 		github.Token,
 		github.Repository.Owner,
 		github.Repository.Name,
