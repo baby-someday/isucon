@@ -22,6 +22,7 @@ const (
 	FLAG_NETWORK_PATH    = "network"
 	FLAG_NGINX_PATH      = "nginx"
 	FLAG_PROJECT_PATH    = "project"
+	FLAG_SERVER_PATH     = "server"
 	FLAG_SLACK_PATH      = "slack"
 
 	FLAG_DISTRIBUTE_PATH_DEFAULT = "./config/distribute.yml"
@@ -31,6 +32,7 @@ const (
 	FLAG_NETWORK_PATH_DEFAULT    = "./config/network.yml"
 	FLAG_NGINX_PATH_DEFAULT      = "./config/nginx.yml"
 	FLAG_PROJECT_PATH_DEFAULT    = "./config/project.yml"
+	FLAG_SERVER_PATH_DEFAULT     = "./config/server.yml"
 	FLAG_SLACK_PATH_DEFAULT      = "./config/slack.yml"
 )
 

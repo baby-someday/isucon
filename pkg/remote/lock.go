@@ -7,45 +7,27 @@ import (
 )
 
 func Lock(path, host string, authenticationMethod AuthenticationMethod) error {
-	client, err := NewClient(
+	_, err := Exec(
 		host,
+		fmt.Sprintf("[ ! -f %s ] && touch %s", path, path),
+		make([]Environment, 0),
 		authenticationMethod,
 	)
 	if err != nil {
 		return util.HandleError(err)
 	}
-	defer client.Close()
-
-	session, err := client.NewSession()
-	if err != nil {
-		return util.HandleError(err)
-	}
-	defer session.Close()
-
-	commandToMakeLockFile := fmt.Sprintf("[ ! -f %s ] && touch %s", path, path)
-	err = session.Run(commandToMakeLockFile)
-	if err != nil {
-		return util.HandleError(err)
-	}
-
 	return nil
 }
 
 func Unlock(path, host string, authenticationMethod AuthenticationMethod) error {
-	client, err := NewClient(
+	_, err := Exec(
 		host,
+		fmt.Sprintf("[ -f %s ] && rm -f %s", path, path),
+		make([]Environment, 0),
 		authenticationMethod,
 	)
 	if err != nil {
 		return util.HandleError(err)
 	}
-	defer client.Close()
-
-	session, err := client.NewSession()
-	if err != nil {
-		return util.HandleError(err)
-	}
-	defer session.Close()
-
-	return session.Run(fmt.Sprintf("[ -f %s ] && rm -f %s", path, path))
+	return nil
 }

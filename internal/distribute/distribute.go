@@ -3,6 +3,7 @@ package distribute
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -19,6 +20,7 @@ import (
 	"github.com/baby-someday/isucon/pkg/nginx"
 	"github.com/baby-someday/isucon/pkg/output"
 	"github.com/baby-someday/isucon/pkg/remote"
+	"github.com/baby-someday/isucon/pkg/servermaster"
 	"github.com/baby-someday/isucon/pkg/slack"
 	"github.com/baby-someday/isucon/pkg/util"
 	"golang.org/x/crypto/ssh"
@@ -46,7 +48,8 @@ const (
 
 func DistributeFromLocal(
 	ctx context.Context,
-	network remote.Network,
+	serverMasters []servermaster.ServerMaster,
+	servers []remote.Server,
 	nginxConfig nginx.Config,
 	mysqlConfig mysql.Config,
 	src,
@@ -57,19 +60,30 @@ func DistributeFromLocal(
 ) error {
 	return distribute(
 		ctx,
-		network,
+		serverMasters,
+		servers,
 		dst,
 		lock,
 		command,
 		ignore,
 		[]action{
-			makeCPUMetricsAction(network.Servers),
-			makeNginxMetricsAction(nginxConfig.Servers),
-			makeMySQLMetricsAction(mysqlConfig.Servers),
+			makeCPUMetricsAction(
+				serverMasters,
+				servers,
+			),
+			makeNginxMetricsAction(
+				serverMasters,
+				nginxConfig.Servers,
+			),
+			makeMySQLMetricsAction(
+				serverMasters,
+				mysqlConfig.Servers,
+			),
 		},
 		deloyFromLocal(
 			ctx,
-			network,
+			serverMasters,
+			servers,
 			src,
 			dst,
 			ignore,
@@ -79,7 +93,8 @@ func DistributeFromLocal(
 
 func DistributeFromGitHub(
 	ctx context.Context,
-	network remote.Network,
+	serverMasters []servermaster.ServerMaster,
+	servers []remote.Server,
 	nginxConfig nginx.Config,
 	mysqlConfig mysql.Config,
 	githubToken,
@@ -96,15 +111,25 @@ func DistributeFromGitHub(
 ) error {
 	err := distribute(
 		ctx,
-		network,
+		serverMasters,
+		servers,
 		dst,
 		lock,
 		command,
 		ignore,
 		[]action{
-			makeCPUMetricsAction(network.Servers),
-			makeNginxMetricsAction(nginxConfig.Servers),
-			makeMySQLMetricsAction(mysqlConfig.Servers),
+			makeCPUMetricsAction(
+				serverMasters,
+				servers,
+			),
+			makeNginxMetricsAction(
+				serverMasters,
+				nginxConfig.Servers,
+			),
+			makeMySQLMetricsAction(
+				serverMasters,
+				mysqlConfig.Servers,
+			),
 			makeSaveScoreAction(
 				githubToken,
 				repositoryOwner,
@@ -116,7 +141,8 @@ func DistributeFromGitHub(
 		},
 		deloyFromGitHub(
 			ctx,
-			network,
+			serverMasters,
+			servers,
 			repositoryOwner,
 			repositoryName,
 			repositoryBranch,
@@ -132,7 +158,8 @@ func DistributeFromGitHub(
 
 func distribute(
 	ctx context.Context,
-	network remote.Network,
+	serverMasters []servermaster.ServerMaster,
+	servers []remote.Server,
 	dst,
 	lock,
 	command string,
@@ -143,7 +170,8 @@ func distribute(
 	interaction.Message("ロックの取得を開始します。")
 	err := tryToLock(
 		lock,
-		network,
+		serverMasters,
+		servers,
 	)
 	if err != nil {
 		interaction.Error("ロックの取得に失敗しました。")
@@ -155,7 +183,8 @@ func distribute(
 		interaction.Message("ロックの解除を開始します。")
 		err := tryToUnlock(
 			lock,
-			network,
+			serverMasters,
+			servers,
 		)
 		if err != nil {
 			interaction.Error("ロックの解除に失敗しました。")
@@ -174,15 +203,23 @@ func distribute(
 
 	processes := []process{}
 
-	for _, server := range network.Servers {
-		interaction.Message(fmt.Sprintf("%sへのSSH接続を開始します。", server.Host))
-		authenticationMethod, err := remote.MakeAuthenticationMethod(server.SSH)
+	for _, server := range servers {
+		serverMaster, err := servermaster.FindServerMaster(
+			server.Name,
+			serverMasters,
+		)
+		if err != nil {
+			return util.HandleError(err)
+		}
+
+		interaction.Message(fmt.Sprintf("%sへのSSH接続を開始します。", serverMaster.Host))
+		authenticationMethod, err := remote.MakeAuthenticationMethod(serverMaster.SSH)
 		if err != nil {
 			return util.HandleError(err)
 		}
 
 		client, session, err := remote.NewSession(
-			server.Host,
+			serverMaster.Host,
 			server.Environments,
 			authenticationMethod,
 		)
@@ -199,7 +236,7 @@ func distribute(
 			return util.HandleError(err)
 		}
 
-		stdoutFilePath := path.Join(output.GetDistributeOutputDirPath(), server.Host, "stdout")
+		stdoutFilePath := path.Join(output.GetDistributeOutputDirPath(), serverMaster.Host, "stdout")
 		err = os.MkdirAll(path.Dir(stdoutFilePath), 0755)
 		if err != nil {
 			return util.HandleError(err)
@@ -209,7 +246,7 @@ func distribute(
 			return util.HandleError(err)
 		}
 
-		stderrFilePath := path.Join(output.GetDistributeOutputDirPath(), server.Host, "stderr")
+		stderrFilePath := path.Join(output.GetDistributeOutputDirPath(), serverMaster.Host, "stderr")
 		err = os.MkdirAll(path.Dir(stderrFilePath), 0755)
 		if err != nil {
 			return util.HandleError(err)
@@ -221,7 +258,7 @@ func distribute(
 
 		processes = append(processes, process{
 			client:     client,
-			host:       server.Host,
+			host:       serverMaster.Host,
 			session:    session,
 			stdout:     stdoutPipe,
 			stderr:     stderrPipe,
@@ -235,7 +272,7 @@ func distribute(
 
 		go session.Run(command)
 
-		interaction.Message(fmt.Sprintf("%sへのSSH接続が完了しました。", server.Host))
+		interaction.Message(fmt.Sprintf("%sへのSSH接続が完了しました。", serverMaster.Host))
 	}
 
 	for {
@@ -279,7 +316,8 @@ func distribute(
 
 func deloyFromLocal(
 	ctx context.Context,
-	network remote.Network,
+	serverMasters []servermaster.ServerMaster,
+	servers []remote.Server,
 	src,
 	dst string,
 	ignore []string,
@@ -295,16 +333,24 @@ func deloyFromLocal(
 		interaction.Message("zipファイルの作成に成功しました。")
 
 		interaction.Message("プロジェクトのコピーを開始します。")
-		for _, server := range network.Servers {
-			interaction.Message(fmt.Sprintf("%sの処理を開始します。", server.Host))
-			authenticationMethod, err := remote.MakeAuthenticationMethod(server.SSH)
+		for _, network := range servers {
+			serverMaster, err := servermaster.FindServerMaster(
+				network.Name,
+				serverMasters,
+			)
+			if err != nil {
+				return util.HandleError(errors.New("Server colud not be found"))
+			}
+
+			interaction.Message(fmt.Sprintf("%sの処理を開始します。", serverMaster.Host))
+			authenticationMethod, err := remote.MakeAuthenticationMethod(serverMaster.SSH)
 			if err != nil {
 				return util.HandleError(err)
 			}
 
 			err = remote.CopyFromLocal(
 				ctx,
-				server.Host,
+				serverMaster.Host,
 				zipPath,
 				dst,
 				authenticationMethod,
@@ -312,7 +358,7 @@ func deloyFromLocal(
 			if err != nil {
 				return util.HandleError(err)
 			}
-			interaction.Message(fmt.Sprintf("%sの処理が完了しました。", server.Host))
+			interaction.Message(fmt.Sprintf("%sの処理が完了しました。", serverMaster.Host))
 		}
 		interaction.Message("プロジェクトのコピーが完了しました。")
 
@@ -322,16 +368,22 @@ func deloyFromLocal(
 
 func deloyFromGitHub(
 	ctx context.Context,
-	network remote.Network,
+	serverMasters []servermaster.ServerMaster,
+	servers []remote.Server,
 	repositoryOwner,
 	repositoryName,
 	branch,
 	dst string,
 ) func() error {
 	return func() error {
-		for _, server := range network.Servers {
-			interaction.Message(fmt.Sprintf("%sの処理を開始します。", server.Host))
-			authenticationMethod, err := remote.MakeAuthenticationMethod(server.SSH)
+		for _, server := range servers {
+			serverMaster, err := servermaster.FindServerMaster(
+				server.Name,
+				serverMasters,
+			)
+
+			interaction.Message(fmt.Sprintf("%sの処理を開始します。", serverMaster.Host))
+			authenticationMethod, err := remote.MakeAuthenticationMethod(serverMaster.SSH)
 			if err != nil {
 				return util.HandleError(err)
 			}
@@ -347,7 +399,7 @@ func deloyFromGitHub(
 				dst,
 			)
 			_, err = remote.Exec(
-				server.Host,
+				serverMaster.Host,
 				command,
 				server.Environments,
 				authenticationMethod,
@@ -355,29 +407,41 @@ func deloyFromGitHub(
 			if err != nil {
 				return util.HandleError(err)
 			}
-			interaction.Message(fmt.Sprintf("%sの処理が完了しました。", server.Host))
+			interaction.Message(fmt.Sprintf("%sの処理が完了しました。", serverMaster.Host))
 		}
 		return nil
 	}
 }
 
-func tryToLock(lock string, network remote.Network) error {
-	for _, server := range network.Servers {
-		interaction.Message(fmt.Sprintf("%sのロック取得を開始します。", server.Host))
-		authenticationMethod, err := remote.MakeAuthenticationMethod(server.SSH)
+func tryToLock(
+	lock string,
+	serverMasters []servermaster.ServerMaster,
+	servers []remote.Server,
+) error {
+	for _, server := range servers {
+		serverMaster, err := servermaster.FindServerMaster(
+			server.Name,
+			serverMasters,
+		)
+		if err != nil {
+			return util.HandleError(err)
+		}
+
+		interaction.Message(fmt.Sprintf("%sのロック取得を開始します。", serverMaster.Host))
+		authenticationMethod, err := remote.MakeAuthenticationMethod(serverMaster.SSH)
 		if err != nil {
 			return util.HandleError(err)
 		}
 		err = remote.Lock(
 			lock,
-			server.Host,
+			serverMaster.Host,
 			authenticationMethod,
 		)
 		if err != nil {
-			interaction.Error(fmt.Sprintf("%sのロック取得に失敗しました。", server.Host))
+			interaction.Error(fmt.Sprintf("%sのロック取得に失敗しました。", serverMaster.Host))
 			return util.HandleError(err)
 		}
-		interaction.Message(fmt.Sprintf("%sのロック取得が完了しました。", server.Host))
+		interaction.Message(fmt.Sprintf("%sのロック取得が完了しました。", serverMaster.Host))
 	}
 
 	return nil
@@ -385,31 +449,43 @@ func tryToLock(lock string, network remote.Network) error {
 
 func tryToUnlock(
 	lock string,
-	network remote.Network,
+	serverMasters []servermaster.ServerMaster,
+	servers []remote.Server,
 ) error {
-	for _, server := range network.Servers {
-		interaction.Message(fmt.Sprintf("%sのロック解除を開始します。", server.Host))
-		authenticationMethod, err := remote.MakeAuthenticationMethod(server.SSH)
+	for _, server := range servers {
+		serverMaster, err := servermaster.FindServerMaster(
+			server.Name,
+			serverMasters,
+		)
 		if err != nil {
-			interaction.Error(fmt.Sprintf("%sのロック解除に失敗しました。", server.Host))
+			return util.HandleError(err)
+		}
+
+		interaction.Message(fmt.Sprintf("%sのロック解除を開始します。", serverMaster.Host))
+		authenticationMethod, err := remote.MakeAuthenticationMethod(serverMaster.SSH)
+		if err != nil {
+			interaction.Error(fmt.Sprintf("%sのロック解除に失敗しました。", serverMaster.Host))
 			return util.HandleError(err)
 		}
 		err = remote.Unlock(
 			lock,
-			server.Host,
+			serverMaster.Host,
 			authenticationMethod,
 		)
 		if err != nil {
-			interaction.Error(fmt.Sprintf("%sのロック解除に失敗しました。", server.Host))
+			interaction.Error(fmt.Sprintf("%sのロック解除に失敗しました。", serverMaster.Host))
 			return util.HandleError(err)
 		}
-		interaction.Message(fmt.Sprintf("%sのロック解除が完了しました。", server.Host))
+		interaction.Message(fmt.Sprintf("%sのロック解除が完了しました。", serverMaster.Host))
 	}
 
 	return nil
 }
 
-func makeCPUMetricsAction(servers []remote.Server) action {
+func makeCPUMetricsAction(
+	serverMasters []servermaster.ServerMaster,
+	servers []remote.Server,
+) action {
 	return action{
 		name: "metrics-cpu",
 		callback: func() error {
@@ -426,7 +502,11 @@ func makeCPUMetricsAction(servers []remote.Server) action {
 				break
 			}
 
-			err := metricscpu.MeasureMetrics(int(interval), servers)
+			err := metricscpu.MeasureMetrics(
+				int(interval),
+				serverMasters,
+				servers,
+			)
 			if err != nil {
 				interaction.Error("CPUのメトリクス取得に失敗しました。")
 				return util.HandleError(err)
@@ -436,11 +516,17 @@ func makeCPUMetricsAction(servers []remote.Server) action {
 	}
 }
 
-func makeNginxMetricsAction(servers []nginx.Server) action {
+func makeNginxMetricsAction(
+	serverMasters []servermaster.ServerMaster,
+	servers []nginx.Server,
+) action {
 	return action{
 		name: "metrics-nginx",
 		callback: func() error {
-			err := metricsnginx.CopyLogFiles(servers)
+			err := metricsnginx.CopyLogFiles(
+				serverMasters,
+				servers,
+			)
 			if err != nil {
 				interaction.Error("NGINXのメトリクス取得に失敗しました。")
 				return util.HandleError(err)
@@ -450,11 +536,17 @@ func makeNginxMetricsAction(servers []nginx.Server) action {
 	}
 }
 
-func makeMySQLMetricsAction(servers []mysql.Server) action {
+func makeMySQLMetricsAction(
+	serverMasters []servermaster.ServerMaster,
+	servers []mysql.Server,
+) action {
 	return action{
 		name: "metrics-mysql",
 		callback: func() error {
-			err := metricsmysql.CopyLogFiles(servers)
+			err := metricsmysql.CopyLogFiles(
+				serverMasters,
+				servers,
+			)
 			if err != nil {
 				interaction.Error("MySQLのメトリクス取得に失敗しました。")
 				return util.HandleError(err)

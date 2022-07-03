@@ -5,8 +5,7 @@ type Network struct {
 }
 
 type Server struct {
-	Host         string        `yaml:"host"`
-	SSH          SSH           `yaml:"ssh"`
+	Name         string        `yaml:"name"`
 	Git          Git           `yaml:"git"`
 	Environments []Environment `yaml:"environments"`
 }

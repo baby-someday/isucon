@@ -8,6 +8,7 @@ import (
 
 	"github.com/baby-someday/isucon/pkg/output"
 	"github.com/baby-someday/isucon/pkg/remote"
+	"github.com/baby-someday/isucon/pkg/servermaster"
 	"github.com/baby-someday/isucon/pkg/util"
 	"golang.org/x/crypto/ssh"
 )
@@ -18,16 +19,28 @@ type process struct {
 	vmstatFile *os.File
 }
 
-func MeasureMetrics(interval int, servers []remote.Server) error {
+func MeasureMetrics(
+	interval int,
+	serverMasters []servermaster.ServerMaster,
+	servers []remote.Server,
+) error {
 	processes := []process{}
 	for _, server := range servers {
-		authenticationMethod, err := remote.MakeAuthenticationMethod(server.SSH)
+		serverMaster, err := servermaster.FindServerMaster(
+			server.Name,
+			serverMasters,
+		)
+		if err != nil {
+			return util.HandleError(err)
+		}
+
+		authenticationMethod, err := remote.MakeAuthenticationMethod(serverMaster.SSH)
 		if err != nil {
 			return util.HandleError(err)
 		}
 
 		client, session, err := remote.NewSession(
-			server.Host,
+			serverMaster.Host,
 			server.Environments,
 			authenticationMethod,
 		)
@@ -40,7 +53,7 @@ func MeasureMetrics(interval int, servers []remote.Server) error {
 			return util.HandleError(err)
 		}
 
-		vmstatFilePath := path.Join(output.GetCPUMetricsDirPath(), server.Host, "vmstat")
+		vmstatFilePath := path.Join(output.GetCPUMetricsDirPath(), serverMaster.Host, "vmstat")
 		err = os.MkdirAll(path.Dir(vmstatFilePath), 0755)
 		if err != nil {
 			return util.HandleError(err)

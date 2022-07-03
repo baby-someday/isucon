@@ -1,17 +1,20 @@
 package mysql
 
-import "github.com/baby-someday/isucon/pkg/remote"
-
 type Config struct {
 	Servers []Server `yml:"servers"`
+	Test    string   `yml:"test"`
+	TTT     TTT      `yml:"ttt"`
+}
+
+type TTT struct {
+	Name string `yml:"name"`
 }
 
 type Server struct {
-	Host     string     `yml:"host"`
-	Defaults string     `yml:"defaults"`
-	SSH      remote.SSH `yml:"ssh"`
-	Bin      Bin        `yml:"bin"`
-	Log      Log        `yml:"log"`
+	Name     string `yml:"name"`
+	Defaults string `yml:"defaults"`
+	Bin      Bin    `yml:"bin"`
+	Log      Log    `yml:"log"`
 }
 
 type Bin struct {

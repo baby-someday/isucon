@@ -10,15 +10,27 @@ import (
 	"github.com/baby-someday/isucon/pkg/nginx"
 	"github.com/baby-someday/isucon/pkg/output"
 	"github.com/baby-someday/isucon/pkg/remote"
+	"github.com/baby-someday/isucon/pkg/servermaster"
 	"github.com/baby-someday/isucon/pkg/util"
 )
 
-func CopyLogFiles(servers []nginx.Server) error {
+func CopyLogFiles(
+	serverMasters []servermaster.ServerMaster,
+	servers []nginx.Server,
+) error {
 	accessLogFilePaths := make([]string, len(servers))
 
 	for index, server := range servers {
-		interaction.Message(fmt.Sprintf("%sの処理を開始します。", server.Host))
-		authenticationMethod, err := remote.MakeAuthenticationMethod(server.SSH)
+		severMaster, err := servermaster.FindServerMaster(
+			server.Name,
+			serverMasters,
+		)
+		if err != nil {
+			return util.HandleError(err)
+		}
+
+		interaction.Message(fmt.Sprintf("%sの処理を開始します。", severMaster.Host))
+		authenticationMethod, err := remote.MakeAuthenticationMethod(severMaster.SSH)
 		if err != nil {
 			return util.HandleError(err)
 		}
@@ -26,7 +38,7 @@ func CopyLogFiles(servers []nginx.Server) error {
 		interaction.Message("NGINXログファイルのコピーを開始します。")
 		accessLogFilePath, err := nginx.CopyLogFiles(
 			output.GetNginxMetricsDirPath(),
-			server.Host,
+			severMaster.Host,
 			server.Log.Access,
 			server.Log.Error,
 			authenticationMethod,
@@ -41,7 +53,7 @@ func CopyLogFiles(servers []nginx.Server) error {
 
 		interaction.Message("NGINXアクセスログの入れ替えを開始します。")
 		err = nginx.RotateLogFile(
-			server.Host,
+			severMaster.Host,
 			server.Log.Access,
 			authenticationMethod,
 		)
@@ -54,7 +66,7 @@ func CopyLogFiles(servers []nginx.Server) error {
 		defer func() {
 			interaction.Message("NGINXのリスタートを開始します。")
 			err := nginx.Reopen(
-				server.Host,
+				severMaster.Host,
 				server.Bin,
 				authenticationMethod,
 			)
@@ -68,7 +80,7 @@ func CopyLogFiles(servers []nginx.Server) error {
 
 		interaction.Message("NGINXエラーログの入れ替えを開始します。")
 		err = nginx.RotateLogFile(
-			server.Host,
+			severMaster.Host,
 			server.Log.Error,
 			authenticationMethod,
 		)

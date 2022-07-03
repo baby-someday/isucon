@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"strconv"
 
 	"github.com/baby-someday/isucon/internal/distribute"
@@ -15,6 +14,7 @@ import (
 	"github.com/baby-someday/isucon/pkg/nginx"
 	"github.com/baby-someday/isucon/pkg/project"
 	"github.com/baby-someday/isucon/pkg/remote"
+	"github.com/baby-someday/isucon/pkg/servermaster"
 	"github.com/baby-someday/isucon/pkg/slack"
 	"github.com/baby-someday/isucon/pkg/util"
 	"github.com/spf13/cobra"
@@ -50,6 +50,11 @@ func init() {
 		"",
 	)
 	distributeCmd.Flags().String(
+		FLAG_MYSQL_PATH,
+		FLAG_MYSQL_PATH_DEFAULT,
+		"",
+	)
+	distributeCmd.Flags().String(
 		FLAG_NETWORK_PATH,
 		FLAG_NETWORK_PATH_DEFAULT,
 		"",
@@ -60,13 +65,13 @@ func init() {
 		"",
 	)
 	distributeCmd.Flags().String(
-		FLAG_MYSQL_PATH,
-		FLAG_MYSQL_PATH_DEFAULT,
+		FLAG_PROJECT_PATH,
+		FLAG_PROJECT_PATH_DEFAULT,
 		"",
 	)
 	distributeCmd.Flags().String(
-		FLAG_PROJECT_PATH,
-		FLAG_PROJECT_PATH_DEFAULT,
+		FLAG_SERVER_PATH,
+		FLAG_SERVER_PATH_DEFAULT,
 		"",
 	)
 	distributeCmd.Flags().String(
@@ -87,30 +92,64 @@ func runDistributeCommand(cmd *cobra.Command, args []string) {
 	config := distribute.Config{}
 	err := util.ParseFlag(cmd, FLAG_DISTRIBUTE_PATH, &config)
 	if err != nil {
-		log.Fatal(err)
+		interaction.Error(err.Error())
+		return
 	}
 
 	me := me.Config{}
 	err = util.ParseFlag(cmd, FLAG_ME_PATH, &me)
 	if err != nil {
-		log.Fatal(err)
+		interaction.Error(err.Error())
+		return
+	}
+
+	serverMasterConfig := servermaster.Config{}
+	err = util.ParseFlag(cmd, FLAG_SERVER_PATH, &serverMasterConfig)
+	if err != nil {
+		interaction.Error(err.Error())
+		return
 	}
 
 	network := remote.Network{}
 	err = util.ParseFlag(cmd, FLAG_NETWORK_PATH, &network)
 	if err != nil {
-		log.Fatal(err)
+		interaction.Error(err.Error())
+		return
+	}
+
+	nginxConfig := nginx.Config{}
+	err = util.ParseFlag(
+		cmd,
+		FLAG_NGINX_PATH,
+		&nginxConfig,
+	)
+	if err != nil {
+		interaction.Error(err.Error())
+		return
+	}
+
+	mysqlConfig := mysql.Config{}
+	err = util.ParseFlag(
+		cmd,
+		FLAG_MYSQL_PATH,
+		&mysqlConfig,
+	)
+	if err != nil {
+		interaction.Error(err.Error())
+		return
 	}
 
 	slackConfig := slack.Slack{}
 	err = util.ParseFlag(cmd, FLAG_SLACK_PATH, &slackConfig)
 	if err != nil {
-		log.Fatal(err)
+		interaction.Error(err.Error())
+		return
 	}
 
 	from, err := cmd.Flags().GetString(FLAG_DISTRIBUTE_FROM)
 	if err != nil {
-		log.Fatal(err)
+		interaction.Error(err.Error())
+		return
 	}
 
 	err = slack.PostMessage(
@@ -119,7 +158,8 @@ func runDistributeCommand(cmd *cobra.Command, args []string) {
 		fmt.Sprintf("%s\n🚀  %sさんがベンチマークを開始しました  🚀", slack.SEPARATOR, me.Name),
 	)
 	if err != nil {
-		log.Fatal(err)
+		interaction.Error(err.Error())
+		return
 	}
 
 	switch from {
@@ -128,7 +168,10 @@ func runDistributeCommand(cmd *cobra.Command, args []string) {
 			cmd,
 			context.Background(),
 			config,
+			serverMasterConfig,
 			network,
+			nginxConfig,
+			mysqlConfig,
 		)
 
 	case distribute.FROM_GIT_HUB:
@@ -136,12 +179,16 @@ func runDistributeCommand(cmd *cobra.Command, args []string) {
 			cmd,
 			context.Background(),
 			config,
+			serverMasterConfig,
 			network,
+			nginxConfig,
+			mysqlConfig,
 		)
 	}
 
 	if err != nil {
-		log.Fatal(err)
+		interaction.Error(err.Error())
+		return
 	}
 
 	err = slack.PostMessage(
@@ -150,7 +197,8 @@ func runDistributeCommand(cmd *cobra.Command, args []string) {
 		fmt.Sprintf("💨  %sさんがベンチマークを終了しました  💨\n%s", me.Name, slack.SEPARATOR),
 	)
 	if err != nil {
-		log.Fatal(err)
+		interaction.Error(err.Error())
+		return
 	}
 }
 
@@ -158,7 +206,10 @@ func distributeFromLocal(
 	cmd *cobra.Command,
 	ctx context.Context,
 	config distribute.Config,
+	serverMasterConfig servermaster.Config,
 	network remote.Network,
+	nginxConfig nginx.Config,
+	mysqlConfig mysql.Config,
 ) error {
 	interaction.Message("ローカルからデプロイを開始します。")
 
@@ -172,29 +223,10 @@ func distributeFromLocal(
 		return util.HandleError(err)
 	}
 
-	nginxConfig := nginx.Config{}
-	err = util.ParseFlag(
-		cmd,
-		FLAG_NGINX_PATH,
-		&nginxConfig,
-	)
-	if err != nil {
-		return util.HandleError(err)
-	}
-
-	mysqlConfig := mysql.Config{}
-	err = util.ParseFlag(
-		cmd,
-		FLAG_MYSQL_PATH,
-		&mysqlConfig,
-	)
-	if err != nil {
-		return util.HandleError(err)
-	}
-
 	err = distribute.DistributeFromLocal(
 		context.Background(),
-		network,
+		serverMasterConfig.Servers,
+		network.Servers,
 		nginxConfig,
 		mysqlConfig,
 		project.Src,
@@ -215,32 +247,15 @@ func distributeFromGitHub(
 	cmd *cobra.Command,
 	ctx context.Context,
 	config distribute.Config,
+	serverMasterConfig servermaster.Config,
 	network remote.Network,
+	nginxConfig nginx.Config,
+	mysqlConfig mysql.Config,
 ) error {
 	interaction.Message("GitHubからデプロイを開始します。")
 
-	nginxConfig := nginx.Config{}
-	err := util.ParseFlag(
-		cmd,
-		FLAG_NGINX_PATH,
-		&nginxConfig,
-	)
-	if err != nil {
-		return util.HandleError(err)
-	}
-
-	mysqlConfig := mysql.Config{}
-	err = util.ParseFlag(
-		cmd,
-		FLAG_MYSQL_PATH,
-		&mysqlConfig,
-	)
-	if err != nil {
-		return util.HandleError(err)
-	}
-
 	github := github.GitHub{}
-	err = util.ParseFlag(
+	err := util.ParseFlag(
 		cmd,
 		FLAG_GITHUB_PATH,
 		&github,
@@ -277,7 +292,8 @@ func distributeFromGitHub(
 
 	err = distribute.DistributeFromGitHub(
 		ctx,
-		network,
+		serverMasterConfig.Servers,
+		network.Servers,
 		nginxConfig,
 		mysqlConfig,
 		github.Token,

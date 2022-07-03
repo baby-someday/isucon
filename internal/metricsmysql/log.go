@@ -10,15 +10,24 @@ import (
 	"github.com/baby-someday/isucon/pkg/mysql"
 	"github.com/baby-someday/isucon/pkg/output"
 	"github.com/baby-someday/isucon/pkg/remote"
+	"github.com/baby-someday/isucon/pkg/servermaster"
 	"github.com/baby-someday/isucon/pkg/util"
 )
 
-func CopyLogFiles(servers []mysql.Server) error {
+func CopyLogFiles(
+	serverMasters []servermaster.ServerMaster,
+	servers []mysql.Server,
+) error {
 	sloqQueryLogFilePaths := make([]string, len(servers))
 
 	for index, server := range servers {
-		interaction.Message(fmt.Sprintf("%sの処理を開始します。", server.Host))
-		authenticationMethod, err := remote.MakeAuthenticationMethod(server.SSH)
+		serverMaster, err := servermaster.FindServerMaster(
+			server.Name,
+			serverMasters,
+		)
+
+		interaction.Message(fmt.Sprintf("%sの処理を開始します。", serverMaster.Host))
+		authenticationMethod, err := remote.MakeAuthenticationMethod(serverMaster.SSH)
 		if err != nil {
 			return util.HandleError(err)
 		}
@@ -26,7 +35,7 @@ func CopyLogFiles(servers []mysql.Server) error {
 		interaction.Message("MySQLログファイルのコピーを開始します。")
 		slowQueryLogFilePath, err := mysql.CopyLogFiles(
 			output.GetMySQLMetricsDirPath(),
-			server.Host,
+			serverMaster.Host,
 			server.Log.Slow,
 			authenticationMethod,
 		)
@@ -40,7 +49,7 @@ func CopyLogFiles(servers []mysql.Server) error {
 
 		interaction.Message("MySQLアクセスログの入れ替えを開始します。")
 		err = mysql.RotateLogFile(
-			server.Host,
+			serverMaster.Host,
 			server.Log.Slow,
 			authenticationMethod,
 		)
@@ -53,7 +62,7 @@ func CopyLogFiles(servers []mysql.Server) error {
 		defer func() {
 			interaction.Message("MySQLのflush-logsを開始します。")
 			err := mysql.FlushLogs(
-				server.Host,
+				serverMaster.Host,
 				server.Bin.MySQLAdmin,
 				server.Defaults,
 				authenticationMethod,
@@ -69,7 +78,7 @@ func CopyLogFiles(servers []mysql.Server) error {
 
 		interaction.Message("MySQLログの入れ替えを開始します。")
 		err = mysql.RotateLogFile(
-			server.Host,
+			serverMaster.Host,
 			server.Log.Slow,
 			authenticationMethod,
 		)

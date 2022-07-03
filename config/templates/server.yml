@@ -1,0 +1,6 @@
+servers:
+  - name:
+    host:
+    ssh:
+      user:
+      password:
