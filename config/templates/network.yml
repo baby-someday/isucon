@@ -1,14 +1,6 @@
 servers:
-  - host:
-    ssh:
-      user:
-      password:
-      privatekey:
-    nginx:
-      bin:
-      log:
-        access:
-        error:
-    environments:
-      - name:
-        value:
+  - name:
+    bin:
+    log:
+      access:
+      error:

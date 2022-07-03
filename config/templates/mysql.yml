@@ -1,7 +1,8 @@
 servers:
-  - host:
+  - name:
     bin:
       mysql:
       mysqladmin:
     log:
       slow:
+    defaults:
