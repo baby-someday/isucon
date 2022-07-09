@@ -52,6 +52,8 @@ func DistributeFromLocal(
 	servers []remote.Server,
 	nginxConfig nginx.Config,
 	mysqlConfig mysql.Config,
+	alpConfigPath,
+	ptQueryDigestConfigPath,
 	src,
 	dst,
 	lock,
@@ -75,9 +77,15 @@ func DistributeFromLocal(
 				serverMasters,
 				nginxConfig.Servers,
 			),
+			makeNginxAnalysisAction(
+				alpConfigPath,
+			),
 			makeMySQLMetricsAction(
 				serverMasters,
 				mysqlConfig.Servers,
+			),
+			makeMySQLAnalysisAction(
+				ptQueryDigestConfigPath,
 			),
 		},
 		deloyFromLocal(
@@ -97,6 +105,8 @@ func DistributeFromGitHub(
 	servers []remote.Server,
 	nginxConfig nginx.Config,
 	mysqlConfig mysql.Config,
+	alpConfigPath,
+	ptQueryDigestConfigPath,
 	githubToken,
 	repositoryOwner,
 	repositoryName,
@@ -126,9 +136,15 @@ func DistributeFromGitHub(
 				serverMasters,
 				nginxConfig.Servers,
 			),
+			makeNginxAnalysisAction(
+				alpConfigPath,
+			),
 			makeMySQLMetricsAction(
 				serverMasters,
 				mysqlConfig.Servers,
+			),
+			makeMySQLAnalysisAction(
+				ptQueryDigestConfigPath,
 			),
 			makeSaveScoreAction(
 				githubToken,
@@ -536,6 +552,15 @@ func makeNginxMetricsAction(
 	}
 }
 
+func makeNginxAnalysisAction(alpConfigPath string) action {
+	return action{
+		name: "analysis-nginx",
+		callback: func() error {
+			return nginx.Analize(alpConfigPath)
+		},
+	}
+}
+
 func makeMySQLMetricsAction(
 	serverMasters []servermaster.ServerMaster,
 	servers []mysql.Server,
@@ -552,6 +577,15 @@ func makeMySQLMetricsAction(
 				return util.HandleError(err)
 			}
 			return nil
+		},
+	}
+}
+
+func makeMySQLAnalysisAction(ptQueryDigestConfigPath string) action {
+	return action{
+		name: "analysis-mysql",
+		callback: func() error {
+			return mysql.Analize(ptQueryDigestConfigPath)
 		},
 	}
 }

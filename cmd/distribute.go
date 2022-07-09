@@ -35,6 +35,11 @@ const (
 
 func init() {
 	distributeCmd.Flags().String(
+		FLAG_ALP_PATH,
+		FLAG_ALP_PATH_DEFAULT,
+		"",
+	)
+	distributeCmd.Flags().String(
 		FLAG_DISTRIBUTE_PATH,
 		FLAG_DISTRIBUTE_PATH_DEFAULT,
 		"",
@@ -67,6 +72,11 @@ func init() {
 	distributeCmd.Flags().String(
 		FLAG_PROJECT_PATH,
 		FLAG_PROJECT_PATH_DEFAULT,
+		"",
+	)
+	distributeCmd.Flags().String(
+		FLAG_PT_QUERY_DIGEST_PATH,
+		FLAG_PT_QUERY_DIGEST_PATH_DEFAULT,
 		"",
 	)
 	distributeCmd.Flags().String(
@@ -152,6 +162,18 @@ func runDistributeCommand(cmd *cobra.Command, args []string) {
 		return
 	}
 
+	alpConfigPath, err := cmd.Flags().GetString(FLAG_ALP_PATH)
+	if err != nil {
+		interaction.Error(err.Error())
+		return
+	}
+
+	ptQueryDigestConfigPath, err := cmd.Flags().GetString(FLAG_PT_QUERY_DIGEST_PATH)
+	if err != nil {
+		interaction.Error(err.Error())
+		return
+	}
+
 	err = slack.PostMessage(
 		slackConfig.Token,
 		slackConfig.Channel,
@@ -172,6 +194,8 @@ func runDistributeCommand(cmd *cobra.Command, args []string) {
 			network,
 			nginxConfig,
 			mysqlConfig,
+			alpConfigPath,
+			ptQueryDigestConfigPath,
 		)
 
 	case distribute.FROM_GIT_HUB:
@@ -183,6 +207,8 @@ func runDistributeCommand(cmd *cobra.Command, args []string) {
 			network,
 			nginxConfig,
 			mysqlConfig,
+			alpConfigPath,
+			ptQueryDigestConfigPath,
 		)
 	}
 
@@ -210,6 +236,8 @@ func distributeFromLocal(
 	network remote.Network,
 	nginxConfig nginx.Config,
 	mysqlConfig mysql.Config,
+	alpConfigPath,
+	ptQueryDigestConfigPath string,
 ) error {
 	interaction.Message("ローカルからデプロイを開始します。")
 
@@ -229,6 +257,8 @@ func distributeFromLocal(
 		network.Servers,
 		nginxConfig,
 		mysqlConfig,
+		alpConfigPath,
+		ptQueryDigestConfigPath,
 		project.Src,
 		config.Dst,
 		config.Lock,
@@ -251,6 +281,8 @@ func distributeFromGitHub(
 	network remote.Network,
 	nginxConfig nginx.Config,
 	mysqlConfig mysql.Config,
+	alpConfigPath,
+	ptQueryDigestConfigPath string,
 ) error {
 	interaction.Message("GitHubからデプロイを開始します。")
 
@@ -296,6 +328,8 @@ func distributeFromGitHub(
 		network.Servers,
 		nginxConfig,
 		mysqlConfig,
+		alpConfigPath,
+		ptQueryDigestConfigPath,
 		github.Token,
 		github.Repository.Owner,
 		github.Repository.Name,
