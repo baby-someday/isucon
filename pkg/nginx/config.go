@@ -16,9 +16,9 @@ type Log struct {
 }
 
 type ALP struct {
-	Bin        string      `yaml:"bin"`
-	Dirs       []ALPDir    `yaml:"dirs"`
-	ALPPresets []ALPPreset `yaml:"presets"`
+	Bin     string      `yaml:"bin"`
+	Dirs    []ALPDir    `yaml:"dirs"`
+	Presets []ALPPreset `yaml:"presets"`
 }
 
 type ALPDir struct {

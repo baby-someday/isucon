@@ -1,4 +1,4 @@
-package nginx
+package mysql
 
 import (
 	"fmt"
@@ -15,9 +15,9 @@ import (
 	"github.com/baby-someday/isucon/pkg/util"
 )
 
-func Analize(alpConfigPath string) error {
-	alpConfig := ALP{}
-	err := util.ParseFile(alpConfigPath, &alpConfig)
+func Analize(ptQueryDigestConfigPath string) error {
+	ptQueryDigestConfig := PtQueryDigest{}
+	err := util.ParseFile(ptQueryDigestConfigPath, &ptQueryDigestConfig)
 	if err != nil {
 		interaction.Error(err.Error())
 		return err
@@ -25,16 +25,16 @@ func Analize(alpConfigPath string) error {
 
 	dirIndexString := interaction.Choose(
 		"ディレクトリを選択してください。",
-		len(alpConfig.Dirs),
+		len(ptQueryDigestConfig.Dirs),
 		func(index int) (string, string) {
-			return strconv.Itoa(index), alpConfig.Dirs[index].Name
+			return strconv.Itoa(index), ptQueryDigestConfig.Dirs[index].Name
 		},
 	)
 	dirIndex, err := strconv.Atoi(dirIndexString)
 	if err != nil {
 		return util.HandleError(err)
 	}
-	dir := alpConfig.Dirs[dirIndex]
+	dir := ptQueryDigestConfig.Dirs[dirIndex]
 
 	files, err := ioutil.ReadDir(dir.Path)
 	if err != nil {
@@ -67,19 +67,19 @@ func Analize(alpConfigPath string) error {
 
 	presetIndexString := interaction.Choose(
 		"プリセットを選択してください。",
-		len(alpConfig.Presets),
+		len(ptQueryDigestConfig.Presets),
 		func(index int) (string, string) {
-			return strconv.Itoa(index), alpConfig.Presets[index].Name
+			return strconv.Itoa(index), ptQueryDigestConfig.Presets[index].Name
 		},
 	)
 	presetIndex, err := strconv.Atoi(presetIndexString)
 	if err != nil {
 		return util.HandleError(err)
 	}
-	preset := alpConfig.Presets[presetIndex]
+	preset := ptQueryDigestConfig.Presets[presetIndex]
 
-	err = RunAlp(
-		alpConfig.Bin,
+	err = RunPtQuyeryDigest(
+		ptQueryDigestConfig.Bin,
 		path.Join(dir.Path, fileName),
 		preset,
 	)
@@ -89,32 +89,9 @@ func Analize(alpConfigPath string) error {
 	return nil
 }
 
-func RunAlp(bin string, logFilePath string, preset ALPPreset) error {
+func RunPtQuyeryDigest(bin string, logFilePath string, preset PtQueryDigestPreset) error {
 	args := []string{
-		"ltsv",
-		"--file",
 		logFilePath,
-	}
-	if preset.M != "" {
-		args = append(args, "-m", preset.M)
-	}
-	if preset.O != "" {
-		args = append(args, "-o", preset.O)
-	}
-	if preset.Q != "" {
-		args = append(args, "-q", preset.Q)
-	}
-	if preset.QsIgnoreValues {
-		args = append(args, "--qs-ignore-values")
-	}
-	if preset.R != "" {
-		args = append(args, "-r", preset.R)
-	}
-	if preset.ShowFooters {
-		args = append(args, "--show-footers")
-	}
-	if preset.Sort != "" {
-		args = append(args, "--sort", preset.Sort)
 	}
 	if preset.Extra != "" {
 		args = append(args, strings.Split(preset.Extra, " ")...)
@@ -135,7 +112,7 @@ func RunAlp(bin string, logFilePath string, preset ALPPreset) error {
 	}
 	now := time.Now()
 	timestamp := now.Format("2006-01-02_15:04:05.txt")
-	filename := path.Join(output.GetNginxAnalysisDirPath(), timestamp)
+	filename := path.Join(output.GetMySQLAnalysisDirPath(), timestamp)
 	err = os.MkdirAll(path.Dir(filename), os.ModePerm)
 	if err != nil {
 		return util.HandleError(err)

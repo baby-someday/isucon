@@ -24,7 +24,7 @@ func init() {
 }
 
 func runAnalysisNginxCommand(cmd *cobra.Command, args []string) {
-	interaction.Message("ALPの実行を開始します。")
+	interaction.Message("alpの実行を開始します。")
 	filePath, err := cmd.Flags().GetString(FLAG_ALP_PATH)
 	if err != nil {
 		interaction.Error(err.Error())
@@ -36,5 +36,5 @@ func runAnalysisNginxCommand(cmd *cobra.Command, args []string) {
 		interaction.Error(err.Error())
 		return
 	}
-	interaction.Message("ALPの実行が完了しました。")
+	interaction.Message("alpの実行が完了しました。")
 }

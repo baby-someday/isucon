@@ -1,0 +1,7 @@
+bin:
+dirs:
+  - name:
+    path:
+presets:
+  - name:
+    extra:
