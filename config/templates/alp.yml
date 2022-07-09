@@ -1,0 +1,14 @@
+bin:
+dirs:
+  - name:
+    path:
+presets:
+  - name:
+    m:
+    o:
+    q:
+    qs-ignore-values:
+    r:
+    show-footers:
+    sort:
+    extra:

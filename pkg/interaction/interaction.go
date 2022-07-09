@@ -33,6 +33,8 @@ func Choose(
 	count int,
 	option func(index int) (string, string),
 ) string {
+	shouldBreakLine := false
+
 	Message(message)
 	keys := []string{}
 	values := []string{}
@@ -44,9 +46,18 @@ func Choose(
 
 	var in string
 	for {
-		print("👉    ")
+		if shouldBreakLine {
+			println("👇    ")
+		} else {
+			print("👉    ")
+		}
 		for index, key := range keys {
-			print(fmt.Sprintf("%s:%s    ", key, values[index]))
+			output := fmt.Sprintf("%s:%s    ", key, values[index])
+			if shouldBreakLine {
+				println(output)
+			} else {
+				print(output)
+			}
 		}
 		println()
 

@@ -15,6 +15,7 @@ var rootCmd = &cobra.Command{
 }
 
 const (
+	FLAG_ALP_PATH        = "alp"
 	FLAG_DISTRIBUTE_PATH = "distribute"
 	FLAG_GITHUB_PATH     = "github"
 	FLAG_ME_PATH         = "me"
@@ -25,6 +26,7 @@ const (
 	FLAG_SERVER_PATH     = "server"
 	FLAG_SLACK_PATH      = "slack"
 
+	FLAG_ALP_PATH_DEFAULT        = "./config/alp.yml"
 	FLAG_DISTRIBUTE_PATH_DEFAULT = "./config/distribute.yml"
 	FLAG_GITHUB_PATH_DEFAULT     = "./config/github.yml"
 	FLAG_ME_PATH_DEFAULT         = "./config/me.yml"

@@ -17,3 +17,7 @@ func GetMySQLMetricsDirPath() string {
 func GetNginxMetricsDirPath() string {
 	return path.Join("output", "metrics", "nginx")
 }
+
+func GetNginxAnalysisDirPath() string {
+	return path.Join("output", "analysis", "nginx")
+}

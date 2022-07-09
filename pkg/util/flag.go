@@ -13,6 +13,13 @@ func ParseFlag(cmd *cobra.Command, flag string, object interface{}) error {
 		return HandleError(err)
 	}
 
+	return ParseFile(
+		filePath,
+		object,
+	)
+}
+
+func ParseFile(filePath string, object interface{}) error {
 	fileBytes, err := ioutil.ReadFile(filePath)
 	if err != nil {
 		return HandleError(err)
