@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path"
 	"strconv"
@@ -340,8 +341,10 @@ func deloyFromLocal(
 ) func() error {
 	return func() error {
 		interaction.Message("zipファイルの作成を開始します。")
-		zipPath := path.Join(output.GetDistributeOutputDirPath(), path.Base(src)+".zip")
-		err := build.Compress(src, zipPath, ignore)
+		zipName := path.Base(src) + ".zip"
+		localZipPath := path.Join(output.GetDistributeOutputDirPath(), zipName)
+		remoteZipPath := path.Join(dst, zipName)
+		err := build.Compress(src, localZipPath, ignore)
 		if err != nil {
 			interaction.Message("zipファイルの作成に失敗しました。")
 			return util.HandleError(err)
@@ -349,9 +352,9 @@ func deloyFromLocal(
 		interaction.Message("zipファイルの作成に成功しました。")
 
 		interaction.Message("プロジェクトのコピーを開始します。")
-		for _, network := range servers {
+		for _, server := range servers {
 			serverMaster, err := servermaster.FindServerMaster(
-				network.Name,
+				server.Name,
 				serverMasters,
 			)
 			if err != nil {
@@ -364,16 +367,43 @@ func deloyFromLocal(
 				return util.HandleError(err)
 			}
 
+			interaction.Message("リモートのプロジェクト削除を開始します。")
+			remote.Exec(
+				serverMaster.Host,
+				fmt.Sprintf("rm -rf %s", remoteZipPath), // TODO
+				[]remote.Environment{},
+				authenticationMethod,
+			)
+			interaction.Message("リモートのプロジェクト削除が完了しました。")
+
+			interaction.Message("プロジェクトのコピーを開始します。")
 			err = remote.CopyFromLocal(
 				ctx,
 				serverMaster.Host,
-				zipPath,
-				dst,
+				localZipPath,
+				remoteZipPath,
 				authenticationMethod,
 			)
 			if err != nil {
+				interaction.Message("プロジェクトのコピーに失敗しました。")
 				return util.HandleError(err)
 			}
+			interaction.Message("プロジェクトのコピーが完了しました。")
+
+			interaction.Message("プロジェクトの解凍を開始します。")
+			_, err = remote.Exec(
+				serverMaster.Host,
+				fmt.Sprintf("%s -d %s -o %s", server.Unzip.Bin, path.Dir(remoteZipPath), remoteZipPath), // TODO
+				[]remote.Environment{},
+				authenticationMethod,
+			)
+			if err != nil {
+				interaction.Message("プロジェクトの解凍に失敗しました。")
+				log.Println(err.Error())
+				return util.HandleError(err)
+			}
+			interaction.Message("プロジェクトの解凍が完了しました。")
+
 			interaction.Message(fmt.Sprintf("%sの処理が完了しました。", serverMaster.Host))
 		}
 		interaction.Message("プロジェクトのコピーが完了しました。")

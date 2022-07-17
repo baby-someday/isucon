@@ -7,10 +7,15 @@ type Network struct {
 type Server struct {
 	Name         string        `yaml:"name"`
 	Git          Git           `yaml:"git"`
+	Unzip        Unzip         `yaml:"unzip"`
 	Environments []Environment `yaml:"environments"`
 }
 
 type Git struct {
+	Bin string `yaml:"bin"`
+}
+
+type Unzip struct {
 	Bin string `yaml:"bin"`
 }
 

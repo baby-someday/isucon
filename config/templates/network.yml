@@ -1,6 +1,7 @@
 servers:
   - name:
-    bin:
-    log:
-      access:
-      error:
+    environments:
+    git:
+      bin:
+    unzip:
+      bin:

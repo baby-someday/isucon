@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"regexp"
 	"strings"
 
 	"github.com/baby-someday/isucon/pkg/util"
@@ -38,11 +39,11 @@ func archive(dir, p string, ignore []string, zipWriter *zip.Writer) error {
 
 	for _, fileInfo := range fileInfos {
 		fp := path.Join(p, fileInfo.Name())
-		name := strings.TrimPrefix(fp, dir)
+		name := strings.TrimPrefix(fp, dir+"/")
 
 		var shouldFileBeIgnored = false
-		for _, i := range ignore {
-			if strings.TrimPrefix(name, "/") == i {
+		for _, regex := range ignore {
+			if regexp.MustCompile(regex).Match([]byte(name)) {
 				shouldFileBeIgnored = true
 				break
 			}
