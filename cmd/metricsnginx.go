@@ -24,7 +24,7 @@ func init() {
 	)
 	metricsNginxCmd.Flags().String(
 		FLAG_SERVER_PATH,
-		FLAG_SERVER_PATH,
+		FLAG_SERVER_PATH_DEFAULT,
 		"",
 	)
 

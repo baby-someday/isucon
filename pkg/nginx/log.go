@@ -14,6 +14,15 @@ import (
 func RotateLogFile(host, logFilePath string, authenticationMethod remote.AuthenticationMethod) error {
 	_, err := remote.Exec(
 		host,
+		fmt.Sprintf("sudo chown isucon:isucon %s", logFilePath),
+		make([]remote.Environment, 0),
+		authenticationMethod,
+	)
+	if err != nil {
+		return util.HandleError(err)
+	}
+	_, err = remote.Exec(
+		host,
 		fmt.Sprintf("echo \"\" > %s", logFilePath),
 		make([]remote.Environment, 0),
 		authenticationMethod,
